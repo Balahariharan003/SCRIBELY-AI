@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="NoteCraft AI - Smart note taking with AI-powered transcription, summaries, and meeting notes">
+    <title>NoteCraft AI - Smart Note Taker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- ═══════════════════ SPLASH SCREEN ═══════════════════ -->
+        <div id="splash-screen" class="splash-screen">
+            <div class="splash-logo">
+                <div class="splash-icon">N</div>
+                <h1 class="splash-title">NoteCraft AI</h1>
+                <p class="splash-subtitle">AI Powered Note Taker</p>
+            </div>
+            <div class="splash-loader">
+                <div class="splash-loader-bar"></div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ MAIN APP ═══════════════════ -->
+        <div id="main-app" class="main-app" style="display: none;">
+            <!-- ─── TOP HEADER ─── -->
+            <header id="app-header" class="app-header">
+                <div class="header-left">
+                    <h1 class="header-title">Notes AI</h1>
+                </div>
+                <div class="header-right">
+                    <button id="btn-search" class="header-icon-btn" aria-label="Search">
+                        <span class="material-icons-round">search</span>
+                    </button>
+                    <button id="btn-settings" class="header-icon-btn" aria-label="Settings">
+                        <span class="material-icons-round">more_vert</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ─── TAB NAVIGATION ─── -->
+            <div id="tab-bar" class="tab-bar">
+                <button class="tab-btn active" data-tab="all-notes">All Notes</button>
+                <button class="tab-btn" data-tab="folders">Folders</button>
+            </div>
+
+            <!-- ─── SEARCH BAR (Hidden by default) ─── -->
+            <div id="search-overlay" class="search-overlay" style="display: none;">
+                <div class="search-bar-container">
+                    <span class="material-icons-round search-icon">search</span>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search notes...">
+                    <button id="btn-close-search" class="search-close-btn">
+                        <span class="material-icons-round">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ═══════════ PAGES ═══════════ -->
+
+            <!-- ─── PAGE: All Notes ─── -->
+            <div id="page-all-notes" class="page active">
+                <div id="notes-list" class="notes-list">
+                    <!-- Notes cards will be injected here -->
+                </div>
+                <div id="empty-state" class="empty-state" style="display: none;">
+                    <div class="empty-icon">
+                        <span class="material-icons-round">note_add</span>
+                    </div>
+                    <h3>No notes yet</h3>
+                    <p>Tap the + button to create your first note or record audio to transcribe</p>
+                </div>
+            </div>
+
+            <!-- ─── PAGE: Folders ─── -->
+            <div id="page-folders" class="page">
+                <div id="folders-list" class="folders-list">
+                    <!-- Folder cards will be injected here -->
+                </div>
+                <button id="btn-new-folder" class="new-folder-btn">
+                    <span class="material-icons-round">create_new_folder</span>
+                    New Folder
+                </button>
+            </div>
+
+            <!-- ─── PAGE: Note Detail ─── -->
+            <div id="page-note-detail" class="page note-detail-page">
+                <div class="note-detail-header">
+                    <button id="btn-back-from-detail" class="back-btn">
+                        <span class="material-icons-round">arrow_back</span>
+                    </button>
+                    <span class="note-detail-title-text">Note Detail</span>
+                    <button id="btn-note-menu" class="header-icon-btn">
+                        <span class="material-icons-round">more_horiz</span>
+                    </button>
+                </div>
+                <div class="note-detail-actions">
+                    <button id="btn-note-tools" class="note-action-btn tools-btn">
+                        <span class="material-icons-round">auto_awesome</span>
+                        Note Tools
+                    </button>
+                    <button id="btn-edit-note" class="note-action-btn edit-btn">
+                        <span class="material-icons-round">edit</span>
+                        Edit Note
+                    </button>
+                </div>
+                <div id="note-detail-content" class="note-detail-content">
+                    <div class="note-detail-emoji" id="note-detail-emoji">📝</div>
+                    <h2 id="note-detail-title" class="note-detail-title"></h2>
+                    <div class="note-detail-meta">
+                        <span id="note-detail-words" class="note-meta-badge">
+                            <span class="material-icons-round">text_fields</span>
+                            <span class="word-count">0 Words</span>
+                        </span>
+                        <span id="note-detail-date" class="note-meta-date"></span>
+                    </div>
+                    <div id="note-detail-body" class="note-detail-body"></div>
+                </div>
+            </div>
+
+            <!-- ─── PAGE: Note Editor ─── -->
+            <div id="page-note-editor" class="page note-editor-page">
+                <div class="editor-header">
+                    <button id="btn-cancel-edit" class="editor-cancel-btn">Cancel</button>
+                    <span class="editor-header-title">Edit Note</span>
+                    <button id="btn-save-edit" class="editor-save-btn">Save</button>
+                </div>
+                <div class="editor-body">
+                    <div class="editor-emoji-picker">
+                        <button class="emoji-btn selected" data-emoji="📝">📝</button>
+                        <button class="emoji-btn" data-emoji="📚">📚</button>
+                        <button class="emoji-btn" data-emoji="🍎">🍎</button>
+                        <button class="emoji-btn" data-emoji="💡">💡</button>
+                        <button class="emoji-btn" data-emoji="🎯">🎯</button>
+                        <button class="emoji-btn" data-emoji="🔬">🔬</button>
+                        <button class="emoji-btn" data-emoji="💼">💼</button>
+                        <button class="emoji-btn" data-emoji="🎵">🎵</button>
+                    </div>
+                    <div class="editor-color-picker">
+                        <button class="color-dot selected" data-color="#4A90D9" style="background: #4A90D9;"></button>
+                        <button class="color-dot" data-color="#E74C3C" style="background: #E74C3C;"></button>
+                        <button class="color-dot" data-color="#2ECC71" style="background: #2ECC71;"></button>
+                        <button class="color-dot" data-color="#F39C12" style="background: #F39C12;"></button>
+                        <button class="color-dot" data-color="#9B59B6" style="background: #9B59B6;"></button>
+                        <button class="color-dot" data-color="#1ABC9C" style="background: #1ABC9C;"></button>
+                        <button class="color-dot" data-color="#E91E63" style="background: #E91E63;"></button>
+                    </div>
+                    <input type="text" id="editor-title-input" class="editor-title-input" placeholder="Note Title">
+                    <textarea id="editor-body-input" class="editor-body-input" placeholder="Start writing..."></textarea>
+                </div>
+            </div>
+
+            <!-- ─── PAGE: Recording ─── -->
+            <div id="page-recording" class="page recording-page">
+                <div class="recording-header">
+                    <button id="btn-back-from-recording" class="back-btn">
+                        <span class="material-icons-round">arrow_back</span>
+                    </button>
+                    <span class="recording-header-title">Recording</span>
+                    <div></div>
+                </div>
+                <div class="recording-body">
+                    <div class="recording-status">
+                        <div id="recording-indicator" class="recording-indicator">
+                            <div class="recording-dot"></div>
+                            <span>Recording</span>
+                        </div>
+                    </div>
+                    <div class="recording-transcript-area">
+                        <div id="recording-transcript" class="recording-transcript">
+                            <p class="transcript-placeholder">Speak now... Your words will appear here in real-time.</p>
+                        </div>
+                    </div>
+                    <div class="recording-waveform">
+                        <canvas id="waveform-canvas" class="waveform-canvas"></canvas>
+                    </div>
+                    <div class="recording-timer-row">
+                        <div class="transcribing-label">
+                            <div class="transcribing-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            Transcribing
+                        </div>
+                        <div id="recording-timer" class="recording-timer">00:00:00</div>
+                    </div>
+                    <div class="recording-controls">
+                        <button id="btn-cancel-recording" class="recording-ctrl-btn cancel-btn">
+                            <span class="material-icons-round">close</span>
+                            Cancel
+                        </button>
+                        <button id="btn-done-recording" class="recording-ctrl-btn done-btn">
+                            <span class="material-icons-round">check</span>
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── PAGE: AI Assistant ─── -->
+            <div id="page-assistant" class="page assistant-page">
+                <div class="assistant-header">
+                    <button id="btn-back-from-assistant" class="back-btn">
+                        <span class="material-icons-round">arrow_back</span>
+                    </button>
+                    <span class="assistant-header-title">AI Assistant</span>
+                    <div></div>
+                </div>
+                <div class="assistant-body">
+                    <div id="assistant-messages" class="assistant-messages">
+                        <div class="assistant-welcome">
+                            <div class="assistant-avatar">
+                                <span class="material-icons-round">auto_awesome</span>
+                            </div>
+                            <h3>How can I help you?</h3>
+                            <p>Ask me anything about your notes, request summaries, or get help with your content.</p>
+                            <div class="assistant-suggestions">
+                                <button class="suggestion-chip" data-query="Summarize my latest note">Summarize my latest note</button>
+                                <button class="suggestion-chip" data-query="Create study flashcards">Create study flashcards</button>
+                                <button class="suggestion-chip" data-query="Explain this concept simply">Explain this concept</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="assistant-input-area">
+                        <input type="text" id="assistant-input" class="assistant-input" placeholder="Ask anything...">
+                        <button id="btn-send-assistant" class="assistant-send-btn">
+                            <span class="material-icons-round">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── PAGE: Upload Audio ─── -->
+            <div id="page-upload" class="page upload-page">
+                <div class="upload-header">
+                    <button id="btn-back-from-upload" class="back-btn">
+                        <span class="material-icons-round">arrow_back</span>
+                    </button>
+                    <span class="upload-header-title">Upload Audio</span>
+                    <div></div>
+                </div>
+                <div class="upload-body">
+                    <div class="upload-card">
+                        <div class="upload-icon">
+                            <span class="material-icons-round">cloud_upload</span>
+                        </div>
+                        <h3>Upload Audio File</h3>
+                        <p>Upload an audio recording of a meeting, lecture, or conversation to generate smart AI notes</p>
+                        <div id="upload-dropzone" class="upload-dropzone">
+                            <span class="material-icons-round">audio_file</span>
+                            <span>Drag & drop or tap to select</span>
+                            <span class="upload-formats">WAV, MP3, WEBM, M4A</span>
+                            <input type="file" id="audio-file-input" accept=".webm,.wav,.mp3,.m4a" style="display:none;">
+                        </div>
+                        <div id="upload-file-info" class="upload-file-info" style="display:none;">
+                            <span class="material-icons-round">audio_file</span>
+                            <span id="upload-filename"></span>
+                            <button id="btn-remove-file" class="remove-file-btn">
+                                <span class="material-icons-round">close</span>
+                            </button>
+                        </div>
+                        <button id="btn-generate-notes" class="generate-notes-btn" disabled>
+                            <span class="material-icons-round">auto_awesome</span>
+                            Generate Smart Notes
+                        </button>
+                    </div>
+
+                    <!-- Processing status -->
+                    <div id="processing-card" class="processing-card" style="display: none;">
+                        <div class="processing-animation">
+                            <div class="processing-ring"></div>
+                            <span class="material-icons-round processing-icon">auto_awesome</span>
+                        </div>
+                        <h3 id="processing-title">Processing your audio...</h3>
+                        <p id="processing-status" class="processing-status-text">Uploading audio to server...</p>
+                        <div class="processing-progress">
+                            <div id="processing-bar" class="processing-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Result card -->
+                    <div id="result-card" class="result-card" style="display: none;">
+                        <div class="result-icon">
+                            <span class="material-icons-round">check_circle</span>
+                        </div>
+                        <h3>Notes Generated!</h3>
+                        <p>Your smart notes are ready for download</p>
+                        <a id="download-link" class="download-btn" href="#" download>
+                            <span class="material-icons-round">download</span>
+                            Download DOCX
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── NOTE TOOLS PANEL (Bottom Sheet) ─── -->
+            <div id="note-tools-panel" class="bottom-sheet" style="display: none;">
+                <div class="bottom-sheet-overlay" id="tools-overlay"></div>
+                <div class="bottom-sheet-content">
+                    <div class="bottom-sheet-handle"></div>
+                    <h3 class="bottom-sheet-title">Note Tools</h3>
+                    <div class="tools-grid">
+                        <button class="tool-card" data-tool="summarize">
+                            <span class="material-icons-round">summarize</span>
+                            <span>Summarize</span>
+                        </button>
+                        <button class="tool-card" data-tool="flashcards">
+                            <span class="material-icons-round">style</span>
+                            <span>Flashcards</span>
+                        </button>
+                        <button class="tool-card" data-tool="quiz">
+                            <span class="material-icons-round">quiz</span>
+                            <span>Quiz Me</span>
+                        </button>
+                        <button class="tool-card" data-tool="translate">
+                            <span class="material-icons-round">translate</span>
+                            <span>Translate</span>
+                        </button>
+                        <button class="tool-card" data-tool="keypoints">
+                            <span class="material-icons-round">format_list_bulleted</span>
+                            <span>Key Points</span>
+                        </button>
+                        <button class="tool-card" data-tool="rewrite">
+                            <span class="material-icons-round">auto_fix_high</span>
+                            <span>Rewrite</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── NEW NOTE FAB MENU ─── -->
+            <div id="fab-menu-overlay" class="fab-menu-overlay" style="display: none;"></div>
+            <div id="fab-menu" class="fab-menu" style="display: none;">
+                <button class="fab-menu-item" id="fab-new-text" data-action="new-text">
+                    <span class="material-icons-round">edit_note</span>
+                    <span>New Note</span>
+                </button>
+                <button class="fab-menu-item" id="fab-record" data-action="record">
+                    <span class="material-icons-round">mic</span>
+                    <span>Record & Transcribe</span>
+                </button>
+                <button class="fab-menu-item" id="fab-upload" data-action="upload">
+                    <span class="material-icons-round">upload_file</span>
+                    <span>Upload Audio</span>
+                </button>
+            </div>
+
+            <!-- ─── FLOATING ACTION BUTTON ─── -->
+            <button id="fab-btn" class="fab-btn" aria-label="Create new note">
+                <span class="material-icons-round">add</span>
+            </button>
+
+            <!-- ─── BOTTOM NAVIGATION ─── -->
+            <nav id="bottom-nav" class="bottom-nav">
+                <button class="nav-item active" data-nav="home">
+                    <span class="material-icons-round">home</span>
+                    <span>Home</span>
+                </button>
+                <button class="nav-item" data-nav="record">
+                    <span class="material-icons-round">mic</span>
+                    <span>Record</span>
+                </button>
+                <button class="nav-item" data-nav="assistant">
+                    <span class="material-icons-round">auto_awesome</span>
+                    <span>AI</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ─── NEW FOLDER MODAL ─── -->
+        <div id="new-folder-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <h3>New Folder</h3>
+                <input type="text" id="folder-name-input" class="modal-input" placeholder="Folder name">
+                <div class="modal-actions">
+                    <button id="btn-cancel-folder" class="modal-btn cancel">Cancel</button>
+                    <button id="btn-create-folder" class="modal-btn confirm">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── TOAST NOTIFICATION ─── -->
+        <div id="toast" class="toast" style="display: none;"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
