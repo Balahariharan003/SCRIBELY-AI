@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+httpx
+python-multipart
+reportlab
+python-docx
+faster-whisper
+sarvamai
+supabase

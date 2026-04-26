@@ -1,0 +1,26 @@
+# --- Backend (Python) ---
+backend/__pycache__/
+backend/*.py[cod]
+backend/.env
+backend/venv/
+backend/outputs/*
+backend/.pytest_cache/
+
+# --- Frontend (React Native / Expo) ---
+frontend/node_modules/
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+frontend/expo-env.d.ts
+frontend/npm-debug.*
+frontend/yarn-debug.*
+frontend/yarn-error.*
+frontend/.env*.local
+frontend/ios/
+frontend/android/
+
+# --- OS / IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
