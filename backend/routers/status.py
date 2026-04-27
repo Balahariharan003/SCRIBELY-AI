@@ -124,36 +124,8 @@ async def download_file(filename: str):
         path        = file_path,
         filename    = os.path.basename(clean_filename),
         media_type  = media_type,
-        background  = BackgroundTask(
-            _cleanup_after_download, session_id_part, file_path
-        ),
     )
 
-
-# ── Cleanup runs AFTER file is fully downloaded ────────────────
-def _cleanup_after_download(session_id: str, file_path: str):
-    """
-    Deletes the served file.
-    If no more output files exist for this session — delete session.
-    """
-    try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"Deleted file: {file_path}")
-
-        # Check if any other output files remain for this session
-        remaining = [
-            f for f in os.listdir(OUTPUTS_DIR)
-            if session_id in f
-        ]
-
-        if not remaining:
-            # We don't have the full session ID here necessarily, 
-            # so we just print. delete_session(session_id) might fail if truncated.
-            print(f"File cleanup complete for session part: {session_id}")
-
-    except Exception as e:
-        print(f"Cleanup error: {e}")
 
 # ── DELETE /session/{session_id} ──────────────────────────────
 @router.delete("/session/{session_id}")

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 
 export default function SignupScreen({ navigation, onSignup }: any) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <LinearGradient colors={['#353535', '#284b63']} style={styles.container}>
@@ -38,16 +40,28 @@ export default function SignupScreen({ navigation, onSignup }: any) {
             value={email}
             onChangeText={setEmail}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              placeholder="Password"
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity 
+              onPress={() => setShowPassword(!showPassword)} 
+              style={styles.eyeIcon}
+            >
+              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.button} onPress={onSignup}>
+          <TouchableOpacity style={styles.button} onPress={() => {
+            onSignup(email, password, name);
+            navigation.navigate('Login');
+          }}>
             <Text style={styles.buttonText}>Sign Up</Text>
           </TouchableOpacity>
 
@@ -119,6 +133,18 @@ const styles = StyleSheet.create({
     color: '#353535',
     fontSize: 18,
     fontWeight: '700',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  eyeIcon: {
+    padding: 15,
   },
   linkContainer: {
     marginTop: 24,

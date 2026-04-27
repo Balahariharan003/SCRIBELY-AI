@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 
 const API_BASE_URL = 'http://10.14.26.249:8001';
 
-export default function HomeScreen({ navigation }: any) {
+export default function HomeScreen({ navigation, user, onLogout }: any) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
@@ -15,6 +15,9 @@ export default function HomeScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
   const [isProfileMenuVisible, setProfileMenuVisible] = useState(false);
+
+  // Extract initial for profile circle
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -127,14 +130,14 @@ export default function HomeScreen({ navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
+          <Text style={styles.greeting}>{getGreeting()}, {user?.name.split(' ')[0] || 'User'}</Text>
           <Text style={styles.headerTitle}>My Notes</Text>
         </View>
         <TouchableOpacity 
           style={styles.profileCircle}
           onPress={() => setProfileMenuVisible(true)}
         >
-          <Text style={styles.profileText}>U</Text>
+          <Text style={styles.profileText}>{userInitial}</Text>
         </TouchableOpacity>
       </View>
 
@@ -153,11 +156,11 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.menuContent}>
             <View style={styles.menuHeader}>
               <View style={styles.menuProfileCircle}>
-                <Text style={styles.menuProfileText}>U</Text>
+                <Text style={styles.menuProfileText}>{userInitial}</Text>
               </View>
               <View>
-                <Text style={styles.menuUserName}>User Name</Text>
-                <Text style={styles.menuUserEmail}>user@example.com</Text>
+                <Text style={styles.menuUserName}>{user?.name || 'User'}</Text>
+                <Text style={styles.menuUserEmail}>{user?.email || 'user@example.com'}</Text>
               </View>
             </View>
             
@@ -167,7 +170,7 @@ export default function HomeScreen({ navigation }: any) {
               style={styles.menuItem}
               onPress={() => {
                 setProfileMenuVisible(false);
-                navigation.replace('Login');
+                onLogout();
               }}
             >
               <Feather name="log-out" size={18} color="#FF4D4D" />
@@ -595,7 +598,7 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   menuContent: {
-    width: 220,
+    width: 280,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,

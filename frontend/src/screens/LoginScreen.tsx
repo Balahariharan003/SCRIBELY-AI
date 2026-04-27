@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 
 export default function LoginScreen({ navigation, onLogin }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <LinearGradient colors={['#284b63', '#353535']} style={styles.container}>
@@ -29,16 +31,32 @@ export default function LoginScreen({ navigation, onLogin }: any) {
             value={email}
             onChangeText={setEmail}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              placeholder="Password"
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity 
+              onPress={() => setShowPassword(!showPassword)} 
+              style={styles.eyeIcon}
+            >
+              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.button} onPress={onLogin}>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('ForgotPassword')} 
+            style={styles.forgotPasswordContainer}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.button} onPress={() => onLogin(email, password)}>
             <Text style={styles.buttonText}>Log In</Text>
           </TouchableOpacity>
 
@@ -110,6 +128,29 @@ const styles = StyleSheet.create({
     color: '#284b63',
     fontSize: 18,
     fontWeight: '700',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  eyeIcon: {
+    padding: 15,
+  },
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 20,
+    marginTop: -8,
+  },
+  forgotPasswordText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   linkContainer: {
     marginTop: 24,

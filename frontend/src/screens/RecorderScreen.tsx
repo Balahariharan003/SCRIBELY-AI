@@ -9,8 +9,8 @@ import { Feather } from '@expo/vector-icons';
 const API_BASE_URL = 'http://10.14.26.249:8001';
 const CHUNK_DURATION_SEC = 180; // 3 minutes
 
-// Simple Waveform Component using Animated Bars
-const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: boolean }) => {
+// Simple Waveform Component using Animated Bars (Memoized for performance)
+const Waveform = React.memo(({ isRecording, isPaused }: { isRecording: boolean, isPaused: boolean }) => {
   const bars = Array.from({ length: 9 }).map((_, i) => {
     const anim = useRef(new Animated.Value(20)).current;
     
@@ -45,7 +45,7 @@ const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: b
     });
   
     return <View style={styles.waveformContainer}>{bars}</View>;
-  };
+  });
   
   export default function RecorderScreen({ navigation }: any) {
     const [isRecording, setIsRecording] = useState(false);
@@ -58,6 +58,8 @@ const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: b
     const sessionIdRef = useRef<string | null>(null);
     const chunkIndexRef = useRef(0);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const startTimeRef = useRef<number>(0);
+    const elapsedBeforePauseRef = useRef<number>(0);
     const elapsedRef = useRef(0);
     const isPausedRef = useRef(false);
   
@@ -132,6 +134,8 @@ const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: b
           sessionIdRef.current = `session-${Date.now()}`;
           chunkIndexRef.current = 0;
           elapsedRef.current = 0;
+          elapsedBeforePauseRef.current = 0;
+          startTimeRef.current = Date.now();
           isPausedRef.current = false;
           setRecordingTime(0);
           setIsPaused(false);
@@ -141,18 +145,23 @@ const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: b
           recorderRef.current = await createRecordingObject();
           setIsRecording(true);
   
-          // Start Continuous Timer
+          // Start High-Precision Timer (Check every 100ms)
           timerRef.current = setInterval(() => {
-            if (isPausedRef.current) return; // Skip if paused
+            if (isPausedRef.current) return;
   
-            elapsedRef.current += 1;
-            setRecordingTime(elapsedRef.current);
+            const now = Date.now();
+            const totalElapsedSec = Math.floor((now - startTimeRef.current + elapsedBeforePauseRef.current) / 1000);
+            
+            if (totalElapsedSec !== elapsedRef.current) {
+              elapsedRef.current = totalElapsedSec;
+              setRecordingTime(totalElapsedSec);
   
-            // Trigger chunking exactly every CHUNK_DURATION_SEC without stopping the timer
-            if (elapsedRef.current > 0 && elapsedRef.current % CHUNK_DURATION_SEC === 0) {
-              backgroundChunking();
+              // Trigger chunking exactly every CHUNK_DURATION_SEC
+              if (totalElapsedSec > 0 && totalElapsedSec % CHUNK_DURATION_SEC === 0) {
+                backgroundChunking();
+              }
             }
-          }, 1000);
+          }, 100);
         } else {
           Alert.alert('Permission needed', 'Please grant microphone access to record notes.');
         }
@@ -166,16 +175,17 @@ const Waveform = ({ isRecording, isPaused }: { isRecording: boolean, isPaused: b
     if (!recorderRef.current) return;
 
     if (isPausedRef.current) {
-      // Optimistic UI update for instant feedback
+      // RESUME
       isPausedRef.current = false;
       setIsPaused(false);
-      // Then resume the actual native recording
+      startTimeRef.current = Date.now(); // Restart the clock for the new interval
       await recorderRef.current.record();
     } else {
-      // Optimistic UI update for instant feedback
+      // PAUSE
       isPausedRef.current = true;
       setIsPaused(true);
-      // Then pause the actual native recording
+      // Store what we have recorded so far
+      elapsedBeforePauseRef.current += (Date.now() - startTimeRef.current);
       await recorderRef.current.pause();
     }
   };

@@ -59,8 +59,16 @@ async def handle_reformat(request: ReformatRequest):
         raise HTTPException(status_code=404, detail="No notes found to reformat")
 
     # Get re-organized version from LLM
+    old_notes = session["ncg_json"]
     block_summaries = session.get("block_summaries", [])
-    new_notes = await reformat_notes(session["ncg_json"], request.instruction, block_summaries)
+    new_notes = await reformat_notes(old_notes, request.instruction, block_summaries)
+    
+    if not new_notes:
+        raise HTTPException(status_code=500, detail="Failed to reformat notes")
+
+    # RESTORE TITLE: Ensure we don't lose the name of the file
+    if not new_notes.get("session_title"):
+        new_notes["session_title"] = old_notes.get("session_title") or old_notes.get("title") or "Session Notes"
     
     # Save the updated version
     save_ncg(request.session_id, new_notes)
@@ -125,11 +133,17 @@ async def run_pipeline(session_id: str):
 
         # ── Wait for pending chunks to finish ──────────────────
         print("Waiting for pending chunks to finish processing...")
+        for _ in range(5): # Wait up to 10 seconds for at least one chunk to appear
+            chunks = get_all_chunks(session_id)
+            if chunks:
+                break
+            await asyncio.sleep(2)
+
         while True:
             chunks = get_all_chunks(session_id)
             if chunks and all(c.get("status") != "pending" for c in chunks):
                 break
-            # If there are no chunks at all, we shouldn't wait forever
+            # If there are no chunks at all after waiting, we stop
             if not chunks:
                 break
             await asyncio.sleep(2)

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from routers import chunks, finalize, status
+from routers import chunks, finalize, status, auth
 
 app = FastAPI(title="Notes Generator API", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(chunks.router,   tags=["Chunks"])
 app.include_router(finalize.router, tags=["Finalize"])
 app.include_router(status.router,   tags=["Status"])
+app.include_router(auth.router,     tags=["Auth"])
 
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "outputs")
 os.makedirs(OUTPUTS_DIR, exist_ok=True)

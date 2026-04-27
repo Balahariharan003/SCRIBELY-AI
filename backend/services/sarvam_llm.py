@@ -28,7 +28,7 @@ else:
     logger.info(f"Using Local Ollama (Model: {SARVAM_MODEL})")
 
 MAX_INPUT_CHARS  = 8000 if USE_SARVAM else 4000
-MAX_OUTPUT_TOKENS = 2000 if USE_SARVAM else 1000 # Capped at 2000 for Sarvam Starter tier
+MAX_OUTPUT_TOKENS = 2000 if USE_SARVAM else 1000 # Strictly capped at 2000 for Sarvam Starter
 
 
 # BASE LLM CALL
@@ -221,6 +221,7 @@ async def clean_transcript(raw_transcript: str) -> str:
     system = (
         "You are a transcript cleaner. Reformat the text into a natural conversation in English.\n"
         "STRICT: NO HALLUCINATION. Use ONLY provided text.\n"
+        "TECHNICAL AWARENESS: Correct common ASR errors for technical terms (e.g., 'RAG' instead of 'RAKE', 'LLM' instead of 'elements').\n"
         "CRITICAL: DO NOT use <think> tags. DO NOT reason. Output ONLY the cleaned conversation.\n"
         "Your final output MUST be wrapped entirely inside <result> tags."
     )
@@ -237,6 +238,7 @@ async def summarise_chunk(clean_transcript: str, prev_summary: str = "", chunk_i
     system = (
         "You are an assistant. Summarize this transcript chunk into concise English bullet points.\n"
         "STRICT: Use ONLY provided text. NO assumptions.\n"
+        "TECHNICAL AWARENESS: Maintain accuracy for technical acronyms (RAG, API, LLM).\n"
         "CRITICAL: DO NOT use <think> tags. DO NOT reason. Output ONLY the bullet points.\n"
         "Your final output MUST be wrapped entirely inside <result> tags."
     )
@@ -249,57 +251,76 @@ async def aggregate_block(chunk_summaries: list, block_index: int) -> str:
     if not chunk_summaries:
         return ""
 
-    system = "Merge these summaries into one paragraph."
+    system = "Merge these summaries into one paragraph while preserving technical terms and acronyms."
     summaries_text = "\n".join([str(s) for s in chunk_summaries if s])[:MAX_INPUT_CHARS]
     return await _safe_llm(system, summaries_text)
 
 
-# JOB 3b: GENERATE NOTES JSON
+# JOB 3b: GENERATE NOTES JSON (Dynamic based on length)
 async def generate_ncg(block_summaries: list, participants: list, meeting_date: str) -> dict:
     if not block_summaries:
         return _fallback_notes(participants, meeting_date)
 
-    system = (
-        "You are an expert executive summarizer. Analyze the conversation and generate structured, professional notes. "
-        "While you should aim for a professional educational style (similar to a 'Learning Path' or 'Meeting Minutes'), "
-        "you have FULL AUTONOMY to decide which sections are most relevant. "
-        "\n\nSuggested sections (use only if they fit the content):\n"
-        "- session_details (subject, date, participants)\n"
-        "- session_overview\n"
-        "- learning_objectives / goals\n"
-        "- topics_covered (detailed breakdown)\n"
-        "- concept_notes\n"
-        "- problems_solved / examples\n"
-        "- key_takeaways ⭐\n"
-        "- qa_section\n"
-        "- practice_work / next_steps\n"
-        "\n\nSTRICT RULES:\n"
-        "1. USE ONLY content from the provided summaries. ZERO HALLUCINATION.\n"
-        "2. ALL OUTPUT MUST BE IN ENGLISH.\n"
-        "3. GENERATE A CREATIVE TITLE in a 'session_title' key.\n"
-        "4. Return ONLY valid JSON wrapped in <result> tags."
-    )
     summaries_text = "\n".join([str(s) for s in block_summaries if s])[:MAX_INPUT_CHARS]
     
-    print(f"[NCG DEBUG] Input length: {len(summaries_text)}")
-    print(f"[NCG DEBUG] Input preview: {summaries_text[:200]}...")
-
-    raw = await _safe_llm(system, summaries_text, max_tokens=MAX_OUTPUT_TOKENS, is_json=True)
+    # --- DYNAMIC LOGIC: Short vs Long Sessions ---
+    is_long_session = len(block_summaries) > 2 # More than ~9 minutes (approx 10-12 mins audio)
     
-    print(f"[NCG DEBUG] Raw type: {type(raw)}")
-    print(f"[NCG DEBUG] Raw preview: {raw[:300]}...")
+    if not is_long_session:
+        # CONCISE MODE for short audio
+        print(f"[NCG] Short Session detected ({len(block_summaries)} blocks). Using concise generation...")
+        system = (
+            f"Generate a concise one-page summary. Use date: {meeting_date} if not mentioned. "
+            "Focus on the main points so the user remembers the staff's words. "
+            "Return ONLY JSON in <result> tags with keys: session_title, session_details, session_overview, "
+            "topics_covered, key_takeaways."
+        )
+        res = await _safe_llm(system, summaries_text, max_tokens=1500, is_json=True)
+        final_notes = _parse_json(res) or _fallback_notes(participants, meeting_date)
+        final_notes["prepared_by"] = f"Scribely AI ({SARVAM_MODEL})"
+        return final_notes
 
-    parsed = _parse_json(raw)
-    
-    print(f"[NCG DEBUG] Parsed type: {type(parsed)}")
+    # VERBOSE MODE for 1-hour sessions
+    print(f"[NCG] Long Session detected ({len(block_summaries)} blocks). Using multi-part detailed generation...")
 
-    if parsed and isinstance(parsed, dict):
-        parsed["prepared_by"] = f"Scribely AI ({SARVAM_MODEL})"
-        return parsed
+    # --- PART 1: Core Metadata & Overview ---
+    system1 = (
+        f"Part 1: Session Metadata. Use date: {meeting_date} if not mentioned. "
+        "Generate 'session_title', 'session_details', and a detailed 'session_overview'. "
+        "Return ONLY JSON in <result> tags."
+    )
+    res1 = await _safe_llm(system1, summaries_text, max_tokens=1500, is_json=True)
+    part1 = _parse_json(res1) or {}
 
-    # Fallback
-    print("[NCG DEBUG] ⚠️ Falling back to _fallback_notes")
-    return _fallback_notes(participants, meeting_date)
+    # --- PART 2: Deep Dive Topics ---
+    system2 = (
+        "Part 2: Detailed Content. Generate 'topics_covered' and 'concept_notes'. "
+        "BE VERY VERBOSE. Explain the staff's words in detail. "
+        "Return ONLY JSON in <result> tags."
+    )
+    res2 = await _safe_llm(system2, summaries_text, max_tokens=2000, is_json=True)
+    part2 = _parse_json(res2) or {}
+
+    # --- PART 3: Conclusions ---
+    system3 = (
+        "Part 3: Takeaways. Generate 'key_takeaways', 'qa_section', and 'practice_work'. "
+        "Return ONLY JSON in <result> tags."
+    )
+    res3 = await _safe_llm(system3, summaries_text, max_tokens=1500, is_json=True)
+    part3 = _parse_json(res3) or {}
+
+    # --- MERGE ---
+    return {
+        "session_title":    part1.get("session_title", "Detailed Session Notes"),
+        "session_details":  part1.get("session_details", {"participants": participants, "date": meeting_date}),
+        "session_overview": part1.get("session_overview", []),
+        "topics_covered":   part2.get("topics_covered", []),
+        "concept_notes":    part2.get("concept_notes", []),
+        "key_takeaways":    part3.get("key_takeaways", []),
+        "qa_section":       part3.get("qa_section", []),
+        "practice_work":    part3.get("practice_work", []),
+        "prepared_by":      f"Scribely AI ({SARVAM_MODEL})"
+    }
 
 
 # JOB 4: REFINEMENT (skipped for speed)
@@ -331,13 +352,15 @@ async def reformat_notes(current_notes: dict, instruction: str, block_summaries:
         "CRITICAL: Minimize internal reasoning/thinking. Prioritize the final JSON translation.\n"
         "1. USE ONLY content found in the original notes. ZERO hallucination.\n"
         "2. Output MUST be a valid JSON object wrapped in <result> tags.\n"
-        "3. PRESERVE ALL SECTIONS: Translate every value in the JSON while keeping keys identical.\n"
-        "4. BE CONCISE: Use direct language to ensure the full document fits in one response."
+        "3. PRESERVE ALL SECTIONS: Translate every value in the JSON while keeping keys IDENTICAL.\n"
+        "4. DO NOT translate the keys themselves (e.g., keep 'session_title', 'topics_covered' as they are).\n"
+        "5. ENSURE 'session_title' and 'date' are present in the final JSON.\n"
+        "6. BE CONCISE: Use direct language to ensure the full document fits in one response."
     )
 
     user_content = f"User Instruction: {instruction}\n\nOriginal Content Context:\n{context_str}"
 
-    raw = await _safe_llm(system, user_content, max_tokens=2000, is_json=True)
+    raw = await _safe_llm(system, user_content, max_tokens=MAX_OUTPUT_TOKENS, is_json=True)
     
     parsed = _parse_json(raw)
 

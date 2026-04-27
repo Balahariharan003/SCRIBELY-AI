@@ -5,6 +5,9 @@ sessions: Dict[str, Any] = {}
 
 
 def create_session(session_id: str, participants: List[str], speaker_timeline: List[dict], title: Optional[str] = None):
+    if session_id in sessions:
+        return
+        
     if not title:
         from datetime import datetime
         title = f"Recording {datetime.now().strftime('%H:%M')}"

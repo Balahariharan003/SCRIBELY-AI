@@ -16,6 +16,19 @@ from reportlab.lib.units import cm
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# Register Tamil-compatible fonts from Windows
+try:
+    pdfmetrics.registerFont(TTFont('Nirmala', 'C:/Windows/Fonts/Nirmala.ttf'))
+    pdfmetrics.registerFont(TTFont('Nirmala-Bold', 'C:/Windows/Fonts/NirmalaB.ttf'))
+    FONT_REGULAR = "Nirmala"
+    FONT_BOLD = "Nirmala-Bold"
+except Exception as e:
+    print(f"Font Load Warning: {e}. Falling back to Helvetica.")
+    FONT_REGULAR = "Helvetica"
+    FONT_BOLD = "Helvetica-Bold"
 
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
@@ -39,11 +52,12 @@ def export_documents(ncg_json: Any, session_id: str) -> tuple:
     raw_title = (
         ncg_json.get("session_title") or
         ncg_json.get("title") or
-        "Recording_Notes"
+        f"Notes_{session_id}"
     )
-    clean_name = re.sub(r'[^\w\s-]', '', raw_title)
+    # Clean for Windows filename
+    clean_name = re.sub(r'[^\w\s-]', '', str(raw_title))
     clean_name = re.sub(r'\s+', '_', clean_name.strip())
-    filename = clean_name[:60] if clean_name else "Session_Notes"
+    filename = clean_name[:80] if clean_name else "Session_Notes"
 
     pdf_path  = os.path.join(OUTPUTS_DIR, f"{filename}.pdf")
     docx_path = os.path.join(OUTPUTS_DIR, f"{filename}.docx")
@@ -69,12 +83,12 @@ def _generate_pdf(ncg_json: dict, path: str):
     )
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("Title", fontSize=18, textColor=NAVY, spaceAfter=12, leading=22, alignment=TA_CENTER, fontName="Helvetica-Bold")
-    h2_style    = ParagraphStyle("H2", fontSize=14, textColor=NAVY, spaceBefore=15, spaceAfter=8, fontName="Helvetica-Bold")
-    h3_style    = ParagraphStyle("H3", fontSize=12, textColor=NAVY, spaceBefore=10, spaceAfter=5, fontName="Helvetica")
-    body_style  = ParagraphStyle("Body", fontSize=10, textColor=CHAR, leading=14, fontName="Helvetica")
-    bullet_style= ParagraphStyle("Bullet", fontSize=10, textColor=CHAR, leading=14, leftIndent=20, firstLineIndent=0, spaceBefore=2, fontName="Helvetica")
-    label_style = ParagraphStyle("Label", fontSize=10, textColor=CHAR, fontName="Helvetica-Bold")
+    title_style = ParagraphStyle("Title", fontSize=18, textColor=NAVY, spaceAfter=12, leading=22, alignment=TA_CENTER, fontName=FONT_BOLD)
+    h2_style    = ParagraphStyle("H2", fontSize=14, textColor=NAVY, spaceBefore=15, spaceAfter=8, fontName=FONT_BOLD)
+    h3_style    = ParagraphStyle("H3", fontSize=12, textColor=NAVY, spaceBefore=10, spaceAfter=5, fontName=FONT_REGULAR)
+    body_style  = ParagraphStyle("Body", fontSize=10, textColor=CHAR, leading=14, fontName=FONT_REGULAR)
+    bullet_style= ParagraphStyle("Bullet", fontSize=10, textColor=CHAR, leading=14, leftIndent=20, firstLineIndent=0, spaceBefore=2, fontName=FONT_REGULAR)
+    label_style = ParagraphStyle("Label", fontSize=10, textColor=CHAR, fontName=FONT_BOLD)
 
     story = []
 
