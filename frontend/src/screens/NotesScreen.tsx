@@ -7,13 +7,13 @@ import NavHeader from '../components/NavHeader';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
-const API_BASE_URL = 'http://10.14.26.249:8001';
+import { API_BASE_URL } from '../config/api';
 
 export default function NotesScreen({ route, navigation }: any) {
   const { sessionId } = route.params;
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -25,10 +25,10 @@ export default function NotesScreen({ route, navigation }: any) {
       const res = await axios.get(`${API_BASE_URL}/status?session_id=${sessionId}`);
       setStatus(res.data);
 
-      if (res.data.status === 'ready') {
+      if (res.data.status === 'ready' || res.data.status === 'completed') {
         setLoading(false);
         if (!isEditing) {
-            setEditedContent(res.data.content || '');
+          setEditedContent(res.data.content || '');
         }
       } else if (res.data.status === 'failed') {
         Alert.alert('Error', 'Processing failed');
@@ -61,15 +61,23 @@ export default function NotesScreen({ route, navigation }: any) {
     }, [sessionId])
   );
 
+  const [exporting, setExporting] = useState(false);
+
   const downloadPdf = async () => {
-    if (!status?.pdf_url) return;
+    setExporting(true);
     try {
-      const url = `${API_BASE_URL}${status.pdf_url}`;
-      const fileName = status.pdf_url.split('/').pop() || 'Notes.pdf';
+      // 1. Trigger on-demand generation
+      const exportRes = await axios.post(`${API_BASE_URL}/export-pdf?session_id=${sessionId}`);
+      const pdfPath = exportRes.data.pdf_url;
+
+      // 2. Download the file
+      const url = `${API_BASE_URL}${pdfPath}`;
+      const fileName = pdfPath.split('/').pop() || 'Notes.pdf';
       const localUri = FileSystem.documentDirectory + fileName;
 
       const { uri } = await FileSystem.downloadAsync(url, localUri);
 
+      // 3. Share/Save
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
@@ -80,8 +88,10 @@ export default function NotesScreen({ route, navigation }: any) {
         Alert.alert('Downloaded!', `File saved to: ${uri}`);
       }
     } catch (err) {
-      console.error('PDF download error:', err);
-      Alert.alert('Error', 'Failed to download PDF.');
+      console.error('PDF export error:', err);
+      Alert.alert('Error', 'Failed to generate or download PDF.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -114,23 +124,27 @@ export default function NotesScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <NavHeader 
-          title="" 
+        <NavHeader
+          title=""
           rightAction={
-            status?.pdf_url && !isEditing ? (
-              <TouchableOpacity onPress={downloadPdf} style={styles.topDownloadBtn}>
-                <Text style={styles.topDownloadText}>Export PDF ⬇️</Text>
+            (status?.status === 'ready' || status?.status === 'completed') && !isEditing ? (
+              <TouchableOpacity onPress={downloadPdf} style={styles.topDownloadBtn} disabled={exporting}>
+                {exporting ? (
+                  <ActivityIndicator size="small" color="#353535" />
+                ) : (
+                  <Text style={styles.topDownloadText}>Export PDF ⬇️</Text>
+                )}
               </TouchableOpacity>
             ) : null
           }
         />
-        
+
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+
           <Text style={styles.title}>Session Notes</Text>
           <Text style={styles.date}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
 
@@ -145,9 +159,47 @@ export default function NotesScreen({ route, navigation }: any) {
                 autoFocus
               />
             ) : (
-              <Text style={styles.contentText}>
-                {status?.content || 'No content available'}
-              </Text>
+              status?.ncg_json ? (
+                <View>
+                  {/* Overview */}
+                  <Text style={styles.sectionHeading}>Session Overview</Text>
+                  <Text style={styles.contentText}>{status.ncg_json.session_overview}</Text>
+
+                  {/* Topics Covered */}
+                  <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Topics Covered</Text>
+                  {Array.isArray(status.ncg_json.topics_covered) ? (
+                    status.ncg_json.topics_covered.map((topic: string, index: number) => {
+                      // Clean up numbering prefixes like "2.", "2.2", etc.
+                      const cleanTopic = topic.replace(/^\d+(\.\d+)*\s*/, '').trim();
+                      return (
+                        <View key={index} style={styles.topicRow}>
+                          <View style={styles.bulletPoint} />
+                          <Text style={styles.topicText}>{cleanTopic}</Text>
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <Text style={styles.topicText}>{String(status.ncg_json.topics_covered)}</Text>
+                  )}
+
+                  {/* Key Takeaways */}
+                  <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Key Takeaways</Text>
+                  {Array.isArray(status.ncg_json.key_takeaways) ? (
+                    status.ncg_json.key_takeaways.map((item: string, index: number) => (
+                      <View key={index} style={styles.takeawayRow}>
+                        <Text style={styles.takeawayBullet}>•</Text>
+                        <Text style={styles.contentText}>{item}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.contentText}>{String(status.ncg_json.key_takeaways)}</Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.contentText}>
+                  {status?.content || 'No content available'}
+                </Text>
+              )
             )}
           </View>
         </ScrollView>
@@ -156,8 +208,8 @@ export default function NotesScreen({ route, navigation }: any) {
         <View style={styles.bottomToolbar}>
           {!isEditing ? (
             <>
-              <TouchableOpacity 
-                style={styles.toolbarBtn} 
+              <TouchableOpacity
+                style={styles.toolbarBtn}
                 onPress={() => {
                   setEditedContent(status?.content || '');
                   setIsEditing(true);
@@ -166,9 +218,9 @@ export default function NotesScreen({ route, navigation }: any) {
                 <Text style={styles.toolbarIcon}>✏️</Text>
                 <Text style={styles.toolbarText}>Edit Text</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.toolbarBtn, styles.primaryBtn]} 
+
+              <TouchableOpacity
+                style={[styles.toolbarBtn, styles.primaryBtn]}
                 onPress={() => navigation.navigate('Customize', { sessionId, content: status?.content })}
               >
                 <Text style={styles.primaryBtnText}>✨ Customize with AI</Text>
@@ -176,16 +228,16 @@ export default function NotesScreen({ route, navigation }: any) {
             </>
           ) : (
             <>
-              <TouchableOpacity 
-                style={styles.toolbarBtn} 
+              <TouchableOpacity
+                style={styles.toolbarBtn}
                 onPress={() => setIsEditing(false)}
                 disabled={saving}
               >
                 <Text style={[styles.toolbarText, { color: '#353535' }]}>Cancel</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.toolbarBtn, styles.primaryBtn]} 
+              <TouchableOpacity
+                style={[styles.toolbarBtn, styles.primaryBtn]}
                 onPress={handleSaveEdit}
                 disabled={saving}
               >
@@ -246,7 +298,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#353535',
+    color: '#284b63',
     letterSpacing: -0.5,
     marginBottom: 8,
   },
@@ -256,12 +308,48 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     fontWeight: '500',
   },
+  sectionHeading: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#284b63',
+    marginBottom: 10,
+  },
+  topicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  bulletPoint: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#284b63',
+    marginRight: 10,
+  },
+  topicText: {
+    fontSize: 16,
+    color: '#000000',
+    fontWeight: '500',
+    flex: 1,
+  },
+  takeawayRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  takeawayBullet: {
+    fontSize: 18,
+    color: '#284b63',
+    marginRight: 8,
+    lineHeight: 24,
+  },
   contentWrapper: {
     flex: 1,
   },
   contentText: {
     fontSize: 16,
-    lineHeight: 28, // Good line height for readability
+    lineHeight: 26,
     color: '#353535',
     fontWeight: '400',
   },

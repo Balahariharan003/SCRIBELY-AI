@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ActivityIndicator, RefreshControl, ScrollView, Modal, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 
-const API_BASE_URL = 'http://10.14.26.249:8001';
+import { API_BASE_URL } from '../config/api';
+import { supabase } from '../config/supabase';
 
 export default function HomeScreen({ navigation, user, onLogout }: any) {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -14,16 +16,30 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
-  const [isProfileMenuVisible, setProfileMenuVisible] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [currentUser, setCurrentUser] = useState(user);
 
-  // Extract initial for profile circle
-  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
+  useFocusEffect(
+    useCallback(() => {
+      const refreshUser = async () => {
+        const { data: { user: latestUser } } = await supabase.auth.getUser();
+        if (latestUser) {
+          setCurrentUser(latestUser);
+        }
+      };
+      refreshUser();
+    }, [])
+  );
+
+  // Extract initial for profile circle from Supabase metadata
+  const metadata = currentUser?.user_metadata || {};
+  const fullName = metadata.full_name || metadata.name || metadata.display_name || metadata.username || 'User';
+  const userInitial = fullName.charAt(0).toUpperCase();
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    if (hour < 17) return "Good Afternoon";
-    return "Good Evening";
+    const greetingBase = hour < 12 ? "Good Morning" : (hour < 17 ? "Good Afternoon" : "Good Evening");
+    return `${greetingBase}, ${fullName.split(' ')[0]}`;
   };
 
   const YEARS = ['All', 2024, 2025, 2026];
@@ -37,8 +53,22 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
 
   const fetchSessions = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/sessions`);
-      setSessions(res.data);
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Map Supabase fields to the expected session format
+      const mappedSessions = data.map(s => ({
+        ...s,
+        id: s.session_id,
+        timestamp: new Date(s.created_at).getTime() / 1000
+      }));
+      
+      setSessions(mappedSessions);
     } catch (err) {
       console.error("Error fetching sessions:", err);
     } finally {
@@ -67,14 +97,22 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
         { 
           text: "Delete", 
           style: "destructive", 
-          onPress: async () => {
-            try {
-              await axios.delete(`${API_BASE_URL}/session/${sessionId}`);
-              fetchSessions();
-            } catch (err) {
-              Alert.alert("Error", "Failed to delete session");
-            }
+        onPress: async () => {
+          try {
+            const { error } = await supabase
+              .from('notes')
+              .delete()
+              .eq('session_id', sessionId);
+              
+            if (error) throw error;
+
+            // Also notify backend to cleanup memory/disk
+            await axios.delete(`${API_BASE_URL}/session/${sessionId}`);
+            fetchSessions();
+          } catch (err) {
+            Alert.alert("Error", "Failed to delete session");
           }
+        }
         }
       ]
     );
@@ -94,14 +132,13 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
     return true;
   });
 
-  const getRelativeTime = (timestamp: number) => {
-    const now = new Date().getTime() / 1000;
-    const diff = now - timestamp;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   const renderItem = ({ item }: any) => (
@@ -110,8 +147,18 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
       onPress={() => navigation.navigate('Notes', { sessionId: item.id })}
     >
       <View style={styles.cardLeft}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.cardDate}>{getRelativeTime(item.timestamp)}</Text>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+          <View style={[
+            styles.statusBadge, 
+            item.status === 'completed' ? styles.statusReady : styles.statusProcessing
+          ]}>
+            <Text style={styles.statusText}>
+              {item.status === 'completed' ? 'Completed' : 'Processing'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.cardDate}>{formatDate(item.timestamp)}</Text>
       </View>
       <View style={styles.cardRight}>
         <View style={styles.cardRightTop}>
@@ -127,15 +174,15 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{getGreeting()}, {user?.name.split(' ')[0] || 'User'}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
           <Text style={styles.headerTitle}>My Notes</Text>
         </View>
         <TouchableOpacity 
           style={styles.profileCircle}
-          onPress={() => setProfileMenuVisible(true)}
+          onPress={() => setShowProfileMenu(true)}
         >
           <Text style={styles.profileText}>{userInitial}</Text>
         </TouchableOpacity>
@@ -143,15 +190,15 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
 
       {/* Profile Menu Modal */}
       <Modal
-        visible={isProfileMenuVisible}
+        visible={showProfileMenu}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setProfileMenuVisible(false)}
+        onRequestClose={() => setShowProfileMenu(false)}
       >
         <TouchableOpacity 
           style={styles.menuOverlay} 
           activeOpacity={1} 
-          onPress={() => setProfileMenuVisible(false)}
+          onPress={() => setShowProfileMenu(false)}
         >
           <View style={styles.menuContent}>
             <View style={styles.menuHeader}>
@@ -159,7 +206,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
                 <Text style={styles.menuProfileText}>{userInitial}</Text>
               </View>
               <View>
-                <Text style={styles.menuUserName}>{user?.name || 'User'}</Text>
+                <Text style={styles.menuUserName}>{fullName}</Text>
                 <Text style={styles.menuUserEmail}>{user?.email || 'user@example.com'}</Text>
               </View>
             </View>
@@ -169,7 +216,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
             <TouchableOpacity 
               style={styles.menuItem}
               onPress={() => {
-                setProfileMenuVisible(false);
+                setShowProfileMenu(false);
                 onLogout();
               }}
             >
@@ -299,7 +346,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
       >
         <Feather name="mic" size={30} color="#fff" />
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -307,7 +354,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-    paddingTop: 60,
   },
   header: {
     flexDirection: 'row',
@@ -315,6 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 20,
+    marginTop: 20, // Push down to avoid status bar
   },
   greeting: {
     fontSize: 14,
@@ -413,11 +460,16 @@ const styles = StyleSheet.create({
   cardLeft: {
     flex: 1,
   },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#353535',
-    marginBottom: 6,
+    flexShrink: 1,
   },
   cardDate: {
     fontSize: 13,
@@ -442,21 +494,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    marginLeft: 8,
   },
   statusReady: {
-    backgroundColor: '#e6fffa',
-    borderWidth: 1,
-    borderColor: '#38b2ac',
+    backgroundColor: '#e6f4ea',
   },
   statusProcessing: {
-    backgroundColor: '#fffaf0',
-    borderWidth: 1,
-    borderColor: '#ed8936',
+    backgroundColor: '#e8f0fe',
   },
   statusText: {
     fontSize: 10,
-    color: '#353535',
     fontWeight: '700',
+    color: '#353535',
   },
   categoryText: {
     fontSize: 12,

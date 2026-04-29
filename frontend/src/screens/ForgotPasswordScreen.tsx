@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 
-const API_BASE_URL = 'http://10.14.26.249:8001';
+import { API_BASE_URL } from '../config/api';
 
 export default function ForgotPasswordScreen({ navigation }: any) {
   const [step, setStep] = useState<'request' | 'verify' | 'reset'>('request');

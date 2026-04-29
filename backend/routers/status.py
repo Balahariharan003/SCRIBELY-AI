@@ -38,6 +38,11 @@ async def list_sessions():
     return sorted(history, key=lambda x: x["id"], reverse=True)
 def _format_content(notes: dict) -> str:
     if not notes: return ""
+    
+    # If the user has edited the notes, return the edited version
+    if notes.get("full_content_edited"):
+        return notes["full_content_edited"]
+
     from services.export import _has_content
     lines = []
     title = notes.get("session_title") or notes.get("title") or "Class Session Notes"
@@ -70,7 +75,7 @@ async def get_status(session_id: str):
     Called by popup.js every 2 seconds after End Meeting.
     Returns current pipeline status and download URLs when ready.
     """
-    session = get_session(session_id)
+    session = get_session(session_id, fetch_if_missing=True)
 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")

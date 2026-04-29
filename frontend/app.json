@@ -29,7 +29,17 @@
         "barStyle": "light-content"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.arunesh062.Note"
+      "package": "com.arunesh062.Note",
+      "allowBackup": true,
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET"
+      ],
+      "config": {
+        "usesCleartextTraffic": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

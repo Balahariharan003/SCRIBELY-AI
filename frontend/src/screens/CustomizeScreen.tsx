@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
 
-const API_BASE_URL = 'http://10.14.26.249:8001';
+import { API_BASE_URL } from '../config/api';
 
 export default function CustomizeScreen({ route, navigation }: any) {
   const { sessionId } = route.params;

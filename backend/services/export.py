@@ -34,7 +34,7 @@ OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
 
 # ── Main export function ───────────────────────────────────────
-def export_documents(ncg_json: Any, session_id: str) -> tuple:
+def export_documents(ncg_json: Any, session_id: str) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
     # Robustness: if ncg_json is a string, try to parse it
@@ -59,14 +59,10 @@ def export_documents(ncg_json: Any, session_id: str) -> tuple:
     clean_name = re.sub(r'\s+', '_', clean_name.strip())
     filename = clean_name[:80] if clean_name else "Session_Notes"
 
-    pdf_path  = os.path.join(OUTPUTS_DIR, f"{filename}.pdf")
-    docx_path = os.path.join(OUTPUTS_DIR, f"{filename}.docx")
-    txt_path  = os.path.join(OUTPUTS_DIR, f"{filename}.txt")
+    pdf_path = os.path.join(OUTPUTS_DIR, f"{filename}.pdf")
 
     _generate_pdf(ncg_json, pdf_path)
-    _generate_docx(ncg_json, docx_path)
-    _generate_txt(ncg_json, txt_path)
-    return f"/outputs/{filename}.pdf", f"/outputs/{filename}.docx"
+    return f"/outputs/{filename}.pdf"
 
 
 # ── PDF Generator ──────────────────────────────────────────────
@@ -93,9 +89,29 @@ def _generate_pdf(ncg_json: dict, path: str):
     story = []
 
     # 1. Title Header
-    title = (ncg_json.get("session_title") or ncg_json.get("title") or "Scribely Session Notes").upper()
-    story.append(Paragraph(title, title_style))
+    title_text = (ncg_json.get("session_title") or ncg_json.get("title") or "Scribely Session Notes").upper()
+    story.append(Paragraph(title_text, title_style))
+    story.append(Spacer(1, 20))
 
+    # ── EDITED CONTENT PASS ──
+    # If the user has edited the notes, we use the edited text as a single block
+    if ncg_json.get("full_content_edited"):
+        edited_text = ncg_json["full_content_edited"]
+        # Split by newlines and handle as paragraphs
+        for line in edited_text.split("\n"):
+            if line.strip():
+                if line.startswith("===") or line.strip().isupper():
+                    story.append(Paragraph(line.replace("=", ""), h2_style))
+                elif line.startswith("•") or line.startswith("-") or line.startswith("*"):
+                    story.append(Paragraph(line[1:].strip(), bullet_style, bulletText="•"))
+                else:
+                    story.append(Paragraph(line, body_style))
+                    story.append(Spacer(1, 4))
+        
+        doc.build(story)
+        return
+
+    # ── ORIGINAL STRUCTURED PASS ──
     # Define metadata keys to skip in the main loop
     metadata_keys = {"session_title", "title", "prepared_by", "status", "session_id", "session_category"}
 
@@ -162,7 +178,13 @@ def _generate_pdf(ncg_json: dict, path: str):
 
         elif isinstance(data, list):
             for item in data:
-                story.append(Paragraph(str(item), bullet_style, bulletText="-"))
+                if isinstance(item, dict):
+                    # Robust nested rendering for unknown keys
+                    for k, v in item.items():
+                        sub_label = k.replace("_", " ").title()
+                        story.append(Paragraph(f"<b>{sub_label}:</b> {v}", bullet_style, bulletText="•"))
+                else:
+                    story.append(Paragraph(str(item), bullet_style, bulletText="-"))
         
         elif isinstance(data, dict):
             for k, v in data.items():
@@ -175,155 +197,6 @@ def _generate_pdf(ncg_json: dict, path: str):
         story.append(Spacer(1, 15))
 
     doc.build(story)
-
-
-# ══ DOCX Generation ════════════════════════════════════════════
-def _generate_docx(notes: dict, path: str):
-    doc = Document()
-    NAVY = RGBColor(40, 75, 99)
-
-    # Margins
-    for section in doc.sections:
-        section.top_margin = section.bottom_margin = Inches(0.8)
-        section.left_margin = section.right_margin = Inches(0.8)
-
-    # Title
-    title_text = notes.get("session_title", "Class Notes").upper()
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(title_text)
-    run.bold = True
-    run.font.size = Pt(18)
-    run.font.color.rgb = NAVY
-
-    metadata_keys = {"session_title", "title", "prepared_by", "status", "session_id"}
-
-    sec_num = 1
-    for key, data in notes.items():
-        if key in metadata_keys or not _has_content(data):
-            continue
-
-        label = key.replace("_", " ").title()
-        _docx_heading(doc, f"{sec_num}. {label}", NAVY)
-
-        if "details" in key.lower() and isinstance(data, dict):
-            table = doc.add_table(rows=0, cols=2)
-            table.style = 'Table Grid'
-            for k, v in data.items():
-                row = table.add_row().cells
-                row[0].text = k.replace("_", " ").title()
-                row[0].paragraphs[0].runs[0].bold = True
-                row[1].text = ", ".join(v) if isinstance(v, list) else str(v)
-
-        elif key == "topics_covered" and isinstance(data, list):
-            for idx, topic in enumerate(data, 1):
-                if isinstance(topic, dict):
-                    t_name = topic.get("topic_name") or topic.get("title") or "Topic"
-                    p = doc.add_paragraph()
-                    
-                    if ":" in t_name:
-                        pre, post = t_name.split(":", 1)
-                        p.add_run(f"{sec_num}.{idx} {pre}:").bold = True
-                        p.add_run(post)
-                    else:
-                        p.add_run(f"{sec_num}.{idx} {t_name}").bold = True
-                    
-                    for tk, tv in topic.items():
-                        if tk in ["topic_name", "title"] or not tv: continue
-                        label_sub = tk.replace('_', ' ').title()
-                        if isinstance(tv, list):
-                            doc.add_paragraph(f"{label_sub}:", style='Body Text').bold = True
-                            for item in tv: doc.add_paragraph(str(item), style='List Bullet')
-                        else:
-                            p2 = doc.add_paragraph()
-                            p2.add_run(f"{label_sub}: ").bold = True
-                            p2.add_run(str(tv))
-                else:
-                    t_str = str(topic)
-                    p = doc.add_paragraph()
-                    if ":" in t_str:
-                        pre, post = t_str.split(":", 1)
-                        p.add_run(f"{sec_num}.{idx} {pre}:").bold = True
-                        p.add_run(post)
-                    else:
-                        p.add_run(f"{sec_num}.{idx} {t_str}").bold = True
-
-        elif key == "qa_section" and isinstance(data, list):
-            for i, qa in enumerate(data, 1):
-                if isinstance(qa, dict):
-                    p = doc.add_paragraph()
-                    p.add_run(f"Q{i}: ").bold = True
-                    p.add_run(str(qa.get("question", "...")))
-                    p = doc.add_paragraph()
-                    p.add_run("A: ").bold = True
-                    p.add_run(str(qa.get("answer", "")))
-                else:
-                    doc.add_paragraph(str(qa), style='List Bullet')
-
-        elif isinstance(data, list):
-            for item in data:
-                doc.add_paragraph(str(item), style='List Bullet')
-        
-        elif isinstance(data, dict):
-            for k, v in data.items():
-                p = doc.add_paragraph()
-                p.add_run(f"{k.replace('_', ' ').title()}: ").bold = True
-                p.add_run(str(v))
-        
-        sec_num += 1
-        doc.add_paragraph()
-
-    doc.save(path)
-
-
-def _docx_heading(doc: Document, title: str, color):
-    para = doc.add_paragraph()
-    run  = para.add_run(title)
-    run.bold = True
-    run.font.size = Pt(13)
-    run.font.color.rgb = color
-    # Border
-    pPr = para._p.get_or_add_pPr()
-    pBdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "6")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), "284B63")
-    pBdr.append(bottom)
-    pPr.append(pBdr)
-
-
-def _generate_txt(notes: dict, path: str):
-    lines = []
-    lines.append("=" * 60)
-    lines.append(notes.get("session_title", "Notes").upper())
-    lines.append("ONLINE CLASS SESSION NOTES")
-    lines.append("=" * 60 + "\n")
-
-    metadata_keys = {"session_title", "title", "prepared_by", "status", "session_id"}
-
-    sec_num = 1
-    for key, data in notes.items():
-        if key in metadata_keys or not _has_content(data): continue
-        lines.append(f"{sec_num}. {key.replace('_', ' ').title()}")
-        lines.append("-" * 30)
-        
-        if isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict):
-                    for k, v in item.items(): lines.append(f"  {k.title()}: {v}")
-                else:
-                    lines.append(f" • {item}")
-        elif isinstance(data, dict):
-            for k, v in data.items(): lines.append(f" {k.title()}: {v}")
-        else:
-            lines.append(str(data))
-        lines.append("")
-        sec_num += 1
-
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
 
 
 def _has_content(value) -> bool:

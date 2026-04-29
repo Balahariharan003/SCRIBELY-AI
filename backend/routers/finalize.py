@@ -1,6 +1,7 @@
 import asyncio
+import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from models import FinalizeRequest, ReformatRequest
 from session.store import (
     get_session,
@@ -30,21 +31,29 @@ router = APIRouter()
 CHUNK_GROUP_SIZE = 5  # number of chunk summaries per block
 
 
-# ── POST /update-notes ─────────────────────────────────────────
 @router.post("/update-notes")
-async def update_notes(session_id: str, notes: dict):
+async def update_notes(session_id: str, data: dict):
     """
     Saves user-edited notes back to the session store.
+    Handles the 'custom_notes' field from the frontend.
     """
-    save_ncg(session_id, notes)
+    session = get_session(session_id, fetch_if_missing=True)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    ncg = session.get("ncg_json", {})
+    new_content = data.get("custom_notes")
     
-    # Update DOCX/TXT on disk
-    from services.export import export_documents
-    from session.store import save_urls
-    pdf_url, docx_url = export_documents(notes, session_id)
-    save_urls(session_id, pdf_url, docx_url)
-    
-    return {"message": "Notes updated"}
+    if ncg and new_content:
+        # If it's a structured JSON, we update the content parts
+        # For simplicity, we can store the edited version as a new field or overwrite
+        # the main text while preserving metadata.
+        ncg["full_content_edited"] = new_content
+        # Also update the display content for the status endpoint
+        session["ncg_json"] = ncg
+        save_ncg(session_id, ncg)
+        
+    return {"message": "Notes updated successfully"}
 
 
 # ── POST /reformat-notes ───────────────────────────────────────
@@ -54,7 +63,7 @@ async def handle_reformat(request: ReformatRequest):
     Uses LLM to re-organize or simplify notes based on instructions.
     Only uses the information already present in the notes.
     """
-    session = get_session(request.session_id)
+    session = get_session(request.session_id, fetch_if_missing=True)
     if not session or not session.get("ncg_json"):
         raise HTTPException(status_code=404, detail="No notes found to reformat")
 
@@ -72,12 +81,6 @@ async def handle_reformat(request: ReformatRequest):
     
     # Save the updated version
     save_ncg(request.session_id, new_notes)
-    
-    # Update DOCX/TXT on disk
-    from services.export import export_documents
-    from session.store import save_urls
-    pdf_url, docx_url = export_documents(new_notes, request.session_id)
-    save_urls(request.session_id, pdf_url, docx_url)
     
     return new_notes
 
@@ -97,7 +100,7 @@ async def finalize(request: FinalizeRequest):
     if not session:
         create_session(session_id, request.participants, [
             e.dict() for e in request.speaker_timeline
-        ], title=request.title or "New Recording")
+        ], request.user_id, title=request.title or "New Recording")
         session = get_session(session_id)
 
     # ── Update speaker timeline and participants ────────────────
@@ -118,7 +121,7 @@ async def finalize(request: FinalizeRequest):
 
 
 # ── Full pipeline ──────────────────────────────────────────────
-async def run_pipeline(session_id: str):
+async def run_pipeline(session_id: str, participants: list = None, timeline: list = None):
     """
     Runs the complete pipeline after End Meeting:
         1. Retry failed chunks
@@ -130,6 +133,14 @@ async def run_pipeline(session_id: str):
     """
     try:
         session = get_session(session_id)
+        if not session:
+            return
+
+        # ── Update session data if provided ─────────────────────
+        if participants:
+            session["participants"] = participants
+        if timeline:
+            session["speaker_timeline"] = timeline
 
         # ── Wait for pending chunks to finish ──────────────────
         print("Waiting for pending chunks to finish processing...")
@@ -158,30 +169,30 @@ async def run_pipeline(session_id: str):
         # ── Step 2: Speaker mapping ────────────────────────────
         speaker_timeline = session.get("speaker_timeline", [])
         if speaker_timeline:
-            print("Running speaker mapping...")
+            print(f"[HEARTBEAT] Session {session_id}: Running speaker mapping...")
             chunks = get_all_chunks(session_id)
             tagged_transcript = assign_speakers(chunks, speaker_timeline)
         else:
-            print("Skipping speaker mapping (no timeline provided).")
+            print(f"[HEARTBEAT] Session {session_id}: Skipping speaker mapping.")
 
         # ── Step 3: MAP-REDUCE — group chunks into blocks ──────
         chunks = get_all_chunks(session_id)
         if len(chunks) == 1:
             # FAST PATH: Single chunk doesn't need aggregation
-            print("Fast Path: Skipping aggregation for single chunk...")
+            print(f"[HEARTBEAT] Session {session_id}: Fast Path - Single chunk detected.")
             first_chunk = chunks[0]
             if isinstance(first_chunk, dict):
                 block_summaries = [first_chunk.get("summary", "")]
             else:
                 block_summaries = [str(first_chunk)]
         else:
-            print(f"Running MAP-REDUCE aggregation for {len(chunks)} chunks...")
+            print(f"[HEARTBEAT] Session {session_id}: Aggregating {len(chunks)} chunk summaries...")
             block_summaries = await _aggregate_blocks(session_id, chunks)
         
         save_block_summaries(session_id, block_summaries)
 
         # ── Step 4: Generate final MoM JSON ───────────────────
-        print("Generating final Notes...")
+        print(f"[HEARTBEAT] Session {session_id}: Generating final structured notes...")
         participants = session.get("participants", [])
         meeting_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -191,30 +202,22 @@ async def run_pipeline(session_id: str):
             meeting_date=meeting_date,
         )
 
-        # ── Step 5: Refinement pass (SKIPPED for speed) ───────
-        # print("Running refinement pass...")
-        # ncg_json = await refine_ncg(ncg_json)
-
         # Update session title and category from AI notes
         ai_title = ncg_json.get("session_title")
         if ai_title and ai_title not in ["Session Notes", "New Recording"]:
             session["title"] = ai_title
         
+        print(f"[HEARTBEAT] Session {session_id}: Saving results to Database...")
         save_ncg(session_id, ncg_json)
 
-        # ── Step 6: Export PDF + DOCX ──────────────────────────
-        # IMPORTANT: We refetch the session here in case user edited notes
-        # during the background process (though usually they edit AFTER finalize)
-        print("Exporting documents...")
-        current_session = get_session(session_id)
-        final_json = current_session.get("ncg_json") or ncg_json
-        
-        pdf_url, docx_url = export_documents(final_json, session_id)
-        save_urls(session_id, pdf_url, docx_url)
-
         # ── Done ───────────────────────────────────────────────
-        set_status(session_id, "ready")
-        print(f"Pipeline complete for session {session_id}")
+        set_status(session_id, "completed")
+        
+        # ── Auto-Wipe Memory ──────────────────────────────────
+        from session.store import clear_session_memory
+        clear_session_memory(session_id)
+        
+        print(f"[FINISHED] Pipeline complete for session {session_id}. Status: COMPLETED.")
 
     except Exception as e:
         import traceback
@@ -281,3 +284,37 @@ async def _aggregate_blocks(session_id: str, chunks: list) -> list:
         block_summaries.append(block_summary)
 
     return block_summaries
+
+
+async def delete_temp_file(path: str, delay: int = 300):
+    await asyncio.sleep(delay)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"[CLEANUP] Deleted temp file: {path}")
+    except Exception as e:
+        print(f"[CLEANUP] Error deleting {path}: {e}")
+
+
+# ── POST /export-pdf ───────────────────────────────────────────
+@router.post("/export-pdf")
+async def export_pdf_endpoint(session_id: str, background_tasks: BackgroundTasks):
+    """
+    Generates PDF on-demand and returns the download link.
+    Automatically deletes the file from disk after 5 minutes.
+    """
+    session = get_session(session_id, fetch_if_missing=True)
+    if not session or not session.get("ncg_json"):
+        raise HTTPException(status_code=404, detail="Notes not found")
+
+    from services.export import export_documents
+    from session.store import save_urls
+    
+    pdf_url = export_documents(session["ncg_json"], session_id)
+    save_urls(session_id, pdf_url, "") # No DOCX
+
+    # Schedule deletion of the local file
+    abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", pdf_url.lstrip("/")))
+    background_tasks.add_task(delete_temp_file, abs_path)
+    
+    return {"pdf_url": pdf_url}

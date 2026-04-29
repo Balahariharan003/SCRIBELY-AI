@@ -17,7 +17,7 @@ load_dotenv()
 USE_SARVAM     = os.getenv("USE_SARVAM", "false").lower() == "true"
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 SARVAM_URL     = "https://api.sarvam.ai/v1/chat/completions"
-SARVAM_MODEL   = os.getenv("SARVAM_LLM_MODEL", "sarvam-1")
+SARVAM_MODEL   = "sarvam-m"
 
 # Initialize Sarvam client if needed
 sarvam_client = None
@@ -28,7 +28,7 @@ else:
     logger.info(f"Using Local Ollama (Model: {SARVAM_MODEL})")
 
 MAX_INPUT_CHARS  = 8000 if USE_SARVAM else 4000
-MAX_OUTPUT_TOKENS = 2000 if USE_SARVAM else 1000 # Strictly capped at 2000 for Sarvam Starter
+MAX_OUTPUT_TOKENS = 4000 if USE_SARVAM else 1000 
 
 
 # BASE LLM CALL
@@ -51,13 +51,14 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = MAX_
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": user_prompt},
-                ],
-                "max_tokens": max_tokens
+                ]
             }
+            if SARVAM_MODEL != "sarvam-m":
+                payload["max_tokens"] = max_tokens
 
             for attempt in range(3):
                 try:
-                    async with httpx.AsyncClient(timeout=180.0) as client:
+                    async with httpx.AsyncClient(timeout=300.0) as client:
                         response = await client.post(SARVAM_URL, json=payload, headers=headers)
 
                         if response.status_code == 200:
@@ -73,8 +74,10 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = MAX_
                             print(f"[LLM DEBUG] Raw Output: {raw_text[:200]}...")
 
                             # --- Robust Cleaning ---
+                            # Remove think blocks carefully
                             clean_text = re.sub(r'<think>.*?(?:</think>|$)', '', raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
 
+                            # 1. Try to find content inside explicit tags
                             for tag in ["result", "summary", "cleaned_transcript", "output"]:
                                 tag_pattern = rf'<{tag}>(.*?)(?:</{tag}>|$)'
                                 tag_match = re.search(tag_pattern, clean_text, flags=re.DOTALL | re.IGNORECASE)
@@ -83,11 +86,20 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = MAX_
                                     if content:
                                         return re.sub(r'</?(?:result|summary|cleaned_transcript|output|think)>', '', content, flags=re.IGNORECASE).strip()
 
+                            # 2. If no tag found but we expect JSON, find the first '{' and last '}'
+                            if is_json:
+                                json_match = re.search(r'(\{.*\})', clean_text, re.DOTALL)
+                                if json_match:
+                                    return json_match.group(1).strip()
+
+                            # 3. Last resort: Return cleaned text without tags
                             clean_text = re.sub(r'</?(?:result|summary|cleaned_transcript|output|think)>', '', clean_text, flags=re.IGNORECASE).strip()
                             if len(clean_text) > 2:
                                 return clean_text
                         else:
                             logger.error(f"Sarvam API Error {response.status_code} (Attempt {attempt+1})")
+                            if response.status_code == 400:
+                                print(f"[400 ERROR DEBUG] Payload: {payload}")
                 except Exception as e:
                     logger.error(f"Cloud attempt {attempt+1} Exception: {e}")
                 
@@ -219,14 +231,11 @@ async def clean_transcript(raw_transcript: str) -> str:
         return ""
 
     system = (
-        "You are a transcript cleaner. Reformat the text into a natural conversation in English.\n"
-        "STRICT: NO HALLUCINATION. Use ONLY provided text.\n"
-        "TECHNICAL AWARENESS: Correct common ASR errors for technical terms (e.g., 'RAG' instead of 'RAKE', 'LLM' instead of 'elements').\n"
-        "CRITICAL: DO NOT use <think> tags. DO NOT reason. Output ONLY the cleaned conversation.\n"
-        "Your final output MUST be wrapped entirely inside <result> tags."
+        "Clean this transcript. Fix grammar and ASR errors. English only.\n"
+        "Output ONLY the cleaned text inside <result> tags."
     )
     user = raw_transcript[:MAX_INPUT_CHARS]
-    result = await _safe_llm(system, user)
+    result = await _safe_llm(system, user, max_tokens=2000)
     return result if result else raw_transcript
 
 
@@ -236,14 +245,11 @@ async def summarise_chunk(clean_transcript: str, prev_summary: str = "", chunk_i
         return ""
 
     system = (
-        "You are an assistant. Summarize this transcript chunk into concise English bullet points.\n"
-        "STRICT: Use ONLY provided text. NO assumptions.\n"
-        "TECHNICAL AWARENESS: Maintain accuracy for technical acronyms (RAG, API, LLM).\n"
-        "CRITICAL: DO NOT use <think> tags. DO NOT reason. Output ONLY the bullet points.\n"
-        "Your final output MUST be wrapped entirely inside <result> tags."
+        "Summarize this text into concise bullet points. English only.\n"
+        "Output ONLY bullet points inside <result> tags."
     )
     user = clean_transcript[:MAX_INPUT_CHARS]
-    return await _safe_llm(system, user)
+    return await _safe_llm(system, user, max_tokens=2000)
 
 
 # JOB 3a: BLOCK AGGREGATION
@@ -270,12 +276,10 @@ async def generate_ncg(block_summaries: list, participants: list, meeting_date: 
         # CONCISE MODE for short audio
         print(f"[NCG] Short Session detected ({len(block_summaries)} blocks). Using concise generation...")
         system = (
-            f"Generate a concise one-page summary. Use date: {meeting_date} if not mentioned. "
-            "Focus on the main points so the user remembers the staff's words. "
-            "Return ONLY JSON in <result> tags with keys: session_title, session_details, session_overview, "
-            "topics_covered, key_takeaways."
+            f"Generate concise notes in English. Use date: {meeting_date}.\n"
+            "Return ONLY JSON in <result> tags with keys: session_title, session_details, session_overview, topics_covered, key_takeaways."
         )
-        res = await _safe_llm(system, summaries_text, max_tokens=1500, is_json=True)
+        res = await _safe_llm(system, summaries_text, max_tokens=2000, is_json=True)
         final_notes = _parse_json(res) or _fallback_notes(participants, meeting_date)
         final_notes["prepared_by"] = f"Scribely AI ({SARVAM_MODEL})"
         return final_notes
@@ -339,26 +343,23 @@ async def reformat_notes(current_notes: dict, instruction: str, block_summaries:
         return {}
 
     # Use both current notes and raw summaries for maximum context
-    context_data = {
-        "current_structured_notes": current_notes,
-        "original_transcription_summaries": block_summaries[:10] if block_summaries else "Not provided"
-    }
-    context_str = json.dumps(context_data, ensure_ascii=False)
-    if len(context_str) > 4000:
-        context_str = context_str[:4000] + "..."
+    # We present the notes clearly as the target for editing
+    context_str = f"CURRENT NOTES (JSON to be modified):\n{json.dumps(current_notes, indent=2)}\n\n"
+    if block_summaries:
+        context_str += f"ORIGINAL TRANSCRIPTION SUMMARIES (for additional context only):\n{json.dumps(block_summaries[:10], indent=2)}\n"
+
+    if len(context_str) > 6000:
+        # If too long, remove the transcription summaries first
+        context_str = f"CURRENT NOTES (JSON to be modified):\n{json.dumps(current_notes, indent=2)}\n\n"
+        if len(context_str) > 6000:
+            context_str = context_str[:6000] + "..."
 
     system = (
-        "You are an expert editor. Your total output (including thinking) MUST stay under 2000 tokens.\n"
-        "CRITICAL: Minimize internal reasoning/thinking. Prioritize the final JSON translation.\n"
-        "1. USE ONLY content found in the original notes. ZERO hallucination.\n"
-        "2. Output MUST be a valid JSON object wrapped in <result> tags.\n"
-        "3. PRESERVE ALL SECTIONS: Translate every value in the JSON while keeping keys IDENTICAL.\n"
-        "4. DO NOT translate the keys themselves (e.g., keep 'session_title', 'topics_covered' as they are).\n"
-        "5. ENSURE 'session_title' and 'date' are present in the final JSON.\n"
-        "6. BE CONCISE: Use direct language to ensure the full document fits in one response."
+        "Edit the following JSON notes based on the User Instruction.\n"
+        "Keep the same JSON keys. Output ONLY the modified JSON inside <result> tags."
     )
 
-    user_content = f"User Instruction: {instruction}\n\nOriginal Content Context:\n{context_str}"
+    user_content = f"USER INSTRUCTION: {instruction}\n\n{context_str}"
 
     raw = await _safe_llm(system, user_content, max_tokens=MAX_OUTPUT_TOKENS, is_json=True)
     

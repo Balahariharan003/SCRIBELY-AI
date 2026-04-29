@@ -15,6 +15,7 @@ class SpeakerEvent(BaseModel):
 
 class ChunkMeta(BaseModel):
     session_id:       str
+    user_id:          str
     chunk_index:      int
     speaker_timeline: List[SpeakerEvent] = []
     participants:     List[str] = []
@@ -23,6 +24,7 @@ class ChunkMeta(BaseModel):
 # ── /finalize ──────────────────────────────────────────────────
 class FinalizeRequest(BaseModel):
     session_id:       str
+    user_id:          str
     participants:     List[str] = []
     speaker_timeline: List[SpeakerEvent] = []
     title:            Optional[str] = None

@@ -13,47 +13,117 @@ import NotesScreen from './src/screens/NotesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import CustomizeScreen from './src/screens/CustomizeScreen';
 
-import axios from 'axios';
 import { Alert } from 'react-native';
-
-const API_BASE_URL = 'http://10.14.26.249:8001';
+import { supabase } from './src/config/supabase';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{name: string, email: string} | null>(null);
+  const [user, setUser] = useState<{name: string, email: string, id: string} | null>(null);
   const [isAppLoading, setIsAppLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate initial loading (Splash Screen Duration)
-    setTimeout(() => {
+    // 1. Handle Splash Screen
+    const timer = setTimeout(() => {
       setIsAppLoading(false);
     }, 2500);
+
+    // 2. Initial Auth Check
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser({
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || 'User',
+          id: session.user.id
+        });
+        setIsAuthenticated(true);
+      }
+    };
+    checkUser();
+
+    // 3. Listen for Auth Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || 'User',
+          id: session.user.id
+        });
+        setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (isAppLoading) {
     return <SplashScreen />;
   }
 
-  const handleLogin = async (email, password) => {
-    try {
-      const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
-      setUser(res.data.user);
-      setIsAuthenticated(true);
-    } catch (err) {
-      Alert.alert("Login Failed", "Invalid email or password");
+  const handleLogin = async (email: string, pass: string) => {
+    if (!email || !pass) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: pass,
+    });
+
+    if (error) {
+      Alert.alert("Login Failed", error.message);
     }
   };
 
-  const handleSignup = async (email, password, name) => {
-    try {
-      await axios.post(`${API_BASE_URL}/signup`, { email, password, name });
-      Alert.alert("Success", "Account created successfully! Please log in.");
-      // We don't setAuthenticated here, so they stay on Login screen
-    } catch (err) {
-      Alert.alert("Signup Failed", "User already exists or server error");
+  const handleSignup = async (email: string, pass: string, name: string) => {
+    if (!email || !pass || !name) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
     }
+
+    // Email Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address");
+      return;
+    }
+
+    // Password Length Validation
+    if (pass.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters long");
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: { 
+          full_name: name,
+          name: name,
+          display_name: name 
+        }
+      }
+    });
+
+    if (error) {
+      Alert.alert("Signup Failed", error.message);
+    } else {
+      Alert.alert("Success", "Account created successfully! You can now log in.");
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
@@ -75,9 +145,11 @@ export default function App() {
             // Main Stack
             <>
               <Stack.Screen name="Home">
-                {(props) => <HomeScreen {...props} user={user} onLogout={() => { setUser(null); setIsAuthenticated(false); }} />}
+                {(props) => <HomeScreen {...props} user={user} onLogout={handleLogout} />}
               </Stack.Screen>
-              <Stack.Screen name="Record" component={RecorderScreen} />
+              <Stack.Screen name="Record">
+                {(props) => <RecorderScreen {...props} user={user} />}
+              </Stack.Screen>
               <Stack.Screen name="Notes" component={NotesScreen} />
               <Stack.Screen name="History" component={HistoryScreen} />
               <Stack.Screen name="Customize" component={CustomizeScreen} />
