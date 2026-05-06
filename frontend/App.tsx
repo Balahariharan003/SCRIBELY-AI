@@ -1,55 +1,90 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as ExpoSplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { Feather } from '@expo/vector-icons';
 
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
-import SplashScreen from './src/screens/SplashScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import RecorderScreen from './src/screens/RecorderScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import CustomizeScreen from './src/screens/CustomizeScreen';
 
-import { Alert } from 'react-native';
+import { Alert, View, Text, Image, StatusBar } from 'react-native';
 import { supabase } from './src/config/supabase';
+
+ExpoSplashScreen.preventAutoHideAsync();
 
 const Stack = createNativeStackNavigator();
 
+const NavigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#000000',
+  },
+};
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{name: string, email: string, id: string} | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; id: string } | null>(null);
   const [isAppLoading, setIsAppLoading] = useState(true);
 
-  useEffect(() => {
-    // 1. Handle Splash Screen
-    const timer = setTimeout(() => {
-      setIsAppLoading(false);
-    }, 2500);
+  // ✅ Bulletproof: Force Metro to bundle the font
+  const [fontsLoaded, fontError] = useFonts({
+    Feather: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf'),
+  });
 
-    // 2. Initial Auth Check
+  // Alert us if fonts fail to load so it doesn't hang silently
+  useEffect(() => {
+    if (fontError) {
+      Alert.alert('Font Load Error', String(fontError));
+    }
+  }, [fontError]);
+
+  // Hide native splash screen ONLY when app is fully ready
+  useEffect(() => {
+    if (!isAppLoading && (fontsLoaded || fontError)) {
+      ExpoSplashScreen.hideAsync().catch(console.warn);
+    }
+  }, [isAppLoading, fontsLoaded, fontError]);
+
+  useEffect(() => {
+    const failsafe = setTimeout(() => {
+      setIsAppLoading(false);
+    }, 5000);
+
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser({
-          email: session.user.email || '',
-          name: session.user.user_metadata?.name || 'User',
-          id: session.user.id
-        });
-        setIsAuthenticated(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser({
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || 'User',
+            id: session.user.id,
+          });
+          setIsAuthenticated(true);
+        }
+      } catch (e) {
+        console.error('Auth check error:', e);
+      } finally {
+        setIsAppLoading(false);
+        clearTimeout(failsafe);
       }
     };
     checkUser();
 
-    // 3. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({
           email: session.user.email || '',
           name: session.user.user_metadata?.name || 'User',
-          id: session.user.id
+          id: session.user.id,
         });
         setIsAuthenticated(true);
       } else {
@@ -59,79 +94,45 @@ export default function App() {
     });
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(failsafe);
       subscription.unsubscribe();
     };
   }, []);
 
-  if (isAppLoading) {
-    return <SplashScreen />;
+  // Keep native splash screen visible while loading
+  if (isAppLoading || (!fontsLoaded && !fontError)) {
+    return null; 
   }
 
   const handleLogin = async (email: string, pass: string) => {
-    if (!email || !pass) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: pass,
-    });
-
-    if (error) {
-      Alert.alert("Login Failed", error.message);
-    }
+    if (!email || !pass) { Alert.alert('Error', 'Please fill in all fields'); return; }
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) Alert.alert('Login Failed', error.message);
   };
 
   const handleSignup = async (email: string, pass: string, name: string) => {
-    if (!email || !pass || !name) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    // Email Validation
+    if (!email || !pass || !name) { Alert.alert('Error', 'Please fill in all fields'); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address");
-      return;
-    }
-
-    // Password Length Validation
-    if (pass.length < 8) {
-      Alert.alert("Weak Password", "Password must be at least 8 characters long");
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: pass,
-      options: {
-        data: { 
-          full_name: name,
-          name: name,
-          display_name: name 
-        }
-      }
+    if (!emailRegex.test(email)) { Alert.alert('Invalid Email', 'Please enter a valid email address'); return; }
+    if (pass.length < 8) { Alert.alert('Weak Password', 'Password must be at least 8 characters long'); return; }
+    const { error } = await supabase.auth.signUp({
+      email, password: pass,
+      options: { data: { full_name: name, name, display_name: name } },
     });
-
-    if (error) {
-      Alert.alert("Signup Failed", error.message);
-    } else {
-      Alert.alert("Success", "Account created successfully! You can now log in.");
-    }
+    if (error) Alert.alert('Signup Failed', error.message);
+    else Alert.alert('Success', 'Account created successfully! You can now log in.');
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); };
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator id="RootNavigator" screenOptions={{ headerShown: false }}>
+      <NavigationContainer theme={NavigationTheme}>
+        <Stack.Navigator
+          id="RootNavigator"
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}
+        >
           {!isAuthenticated ? (
-            // Auth Stack
             <>
               <Stack.Screen name="Login">
                 {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
@@ -142,7 +143,6 @@ export default function App() {
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </>
           ) : (
-            // Main Stack
             <>
               <Stack.Screen name="Home">
                 {(props) => <HomeScreen {...props} user={user} onLogout={handleLogout} />}

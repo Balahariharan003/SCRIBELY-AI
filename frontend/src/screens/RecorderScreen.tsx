@@ -346,7 +346,9 @@ export default function RecorderScreen({ navigation, user }: any) {
                 style={styles.recordButton}
                 onPress={startRecording}
                 disabled={isProcessing}
-              />
+              >
+                <Feather name="mic" size={32} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.sideBtn} />

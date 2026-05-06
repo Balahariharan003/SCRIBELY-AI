@@ -1,2 +1,2 @@
 // Central API Configuration
-export const API_BASE_URL = 'http://10.189.66.249:8001';
+export const API_BASE_URL = 'https://nondepletive-becky-upbeat.ngrok-free.dev';
