@@ -5,6 +5,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
 import { Feather } from '@expo/vector-icons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { API_BASE_URL } from '../config/api';
 
@@ -337,7 +339,7 @@ export default function RecorderScreen({ navigation, user }: any) {
         {!isRecording ? (
           <>
             <TouchableOpacity style={styles.sideBtn} onPress={pickDocument} disabled={isProcessing}>
-              <Feather name="folder" size={24} color="rgba(53, 53, 53, 0.7)" style={styles.uploadIcon} />
+              <FontAwesome name="file-audio-o" size={24} color="#284b63" style={styles.uploadIcon} />
               <Text style={styles.uploadText}>Import Audio</Text>
             </TouchableOpacity>
 
@@ -347,7 +349,7 @@ export default function RecorderScreen({ navigation, user }: any) {
                 onPress={startRecording}
                 disabled={isProcessing}
               >
-                <Feather name="mic" size={32} color="#FFFFFF" />
+                <FontAwesome5 name="microphone" size={30} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 

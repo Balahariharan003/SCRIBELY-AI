@@ -3,8 +3,6 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ExpoSplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import { Feather } from '@expo/vector-icons';
 
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
@@ -35,24 +33,15 @@ export default function App() {
   const [user, setUser] = useState<{ name: string; email: string; id: string } | null>(null);
   const [isAppLoading, setIsAppLoading] = useState(true);
 
-  // ✅ Bulletproof: Force Metro to bundle the font
-  const [fontsLoaded, fontError] = useFonts({
-    Feather: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf'),
-  });
+  // Fonts are pre-bundled into the APK by the expo-font plugin in app.json
+  // No runtime useFonts() needed — avoids ExpoAsset.downloadAsync crash
 
-  // Alert us if fonts fail to load so it doesn't hang silently
+  // Hide splash screen once auth check is done
   useEffect(() => {
-    if (fontError) {
-      Alert.alert('Font Load Error', String(fontError));
-    }
-  }, [fontError]);
-
-  // Hide native splash screen ONLY when app is fully ready
-  useEffect(() => {
-    if (!isAppLoading && (fontsLoaded || fontError)) {
+    if (!isAppLoading) {
       ExpoSplashScreen.hideAsync().catch(console.warn);
     }
-  }, [isAppLoading, fontsLoaded, fontError]);
+  }, [isAppLoading]);
 
   useEffect(() => {
     const failsafe = setTimeout(() => {
@@ -99,9 +88,8 @@ export default function App() {
     };
   }, []);
 
-  // Keep native splash screen visible while loading
-  if (isAppLoading || (!fontsLoaded && !fontError)) {
-    return null; 
+  if (isAppLoading) {
+    return null;
   }
 
   const handleLogin = async (email: string, pass: string) => {

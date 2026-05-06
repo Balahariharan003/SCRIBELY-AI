@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabase';
@@ -220,7 +221,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
                 onLogout();
               }}
             >
-              <Feather name="log-out" size={18} color="#FF4D4D" />
+              <FontAwesome5 name="sign-out-alt" size={18} color="#FF4D4D" />
               <Text style={styles.logoutText}>Log Out</Text>
             </TouchableOpacity>
           </View>
@@ -229,7 +230,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
 
       <View style={styles.searchRow}>
         <View style={styles.searchContainer}>
-          <Feather name="search" size={18} color="#999" style={{ marginRight: 10 }} />
+          <FontAwesome5 name="search" size={16} color="#284b63" style={{ marginRight: 10 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search your notes..."
@@ -242,10 +243,10 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
           style={[styles.filterButton, (selectedMonth !== 'All' || selectedYear !== 'All') && styles.filterButtonActive]} 
           onPress={() => setFilterModalVisible(true)}
         >
-          <Feather 
-            name="filter" 
-            size={22} 
-            color={(selectedMonth !== 'All' || selectedYear !== 'All') ? "#fff" : "#353535"} 
+          <FontAwesome5
+            name="filter"
+            size={20}
+            color={(selectedMonth !== 'All' || selectedYear !== 'All') ? "#fff" : "#284b63"}
           />
         </TouchableOpacity>
       </View>
@@ -344,7 +345,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
         style={styles.fab}
         onPress={() => navigation.navigate('Record')}
       >
-        <Feather name="mic" size={30} color="#fff" />
+        <FontAwesome5 name="microphone" size={28} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
   );

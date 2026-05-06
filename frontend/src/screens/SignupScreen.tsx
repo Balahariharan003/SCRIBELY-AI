@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather } from '@expo/vector-icons';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 export default function SignupScreen({ navigation, onSignup }: any) {
   const [name, setName] = useState('');
@@ -54,7 +54,7 @@ export default function SignupScreen({ navigation, onSignup }: any) {
               onPress={() => setShowPassword(!showPassword)} 
               style={styles.eyeIcon}
             >
-              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="rgba(255,255,255,0.6)" />
+              <FontAwesome name={showPassword ? "eye" : "eye-slash"} size={18} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
           </View>
 

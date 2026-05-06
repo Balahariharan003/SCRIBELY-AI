@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
-import { Feather } from '@expo/vector-icons';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 
 import { API_BASE_URL } from '../config/api';
 
@@ -61,7 +62,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
         
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={24} color="#fff" />
+            <FontAwesome5 name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
 
         <View style={styles.header}>
@@ -116,7 +117,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 onPress={() => setShowPassword(!showPassword)} 
                 style={styles.eyeIcon}
               >
-                <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="rgba(255,255,255,0.6)" />
+                <FontAwesome name={showPassword ? "eye" : "eye-slash"} size={18} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             </View>
           )}
