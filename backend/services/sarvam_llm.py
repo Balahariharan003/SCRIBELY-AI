@@ -27,8 +27,8 @@ if USE_SARVAM and SARVAM_API_KEY:
 else:
     logger.info(f"Using Local Ollama (Model: {SARVAM_MODEL})")
 
-MAX_INPUT_CHARS  = 5000 if USE_SARVAM else 4000
-MAX_OUTPUT_TOKENS = 2400 if USE_SARVAM else 1000 
+MAX_INPUT_CHARS  = 4200 if USE_SARVAM else 4000
+MAX_OUTPUT_TOKENS = 2000 if USE_SARVAM else 1000 
 
 
 # BASE LLM CALL
@@ -350,11 +350,11 @@ async def reformat_notes(current_notes: dict, instruction: str, block_summaries:
     if block_summaries:
         context_str += f"ORIGINAL TRANSCRIPTION SUMMARIES (for additional context only):\n{json.dumps(block_summaries[:10], indent=2)}\n"
 
-    if len(context_str) > 6000:
+    if len(context_str) > MAX_INPUT_CHARS:
         # If too long, remove the transcription summaries first
         context_str = f"CURRENT NOTES (JSON to be modified):\n{json.dumps(current_notes, indent=2)}\n\n"
-        if len(context_str) > 6000:
-            context_str = context_str[:6000] + "..."
+        if len(context_str) > MAX_INPUT_CHARS:
+            context_str = context_str[:MAX_INPUT_CHARS] + "..."
 
     system = (
         "Edit the following JSON notes based on the User Instruction.\n"
@@ -365,7 +365,7 @@ async def reformat_notes(current_notes: dict, instruction: str, block_summaries:
 
     user_content = f"USER INSTRUCTION: {instruction}\n\n{context_str}"
 
-    raw = await _safe_llm(system, user_content, max_tokens=2400, is_json=True)
+    raw = await _safe_llm(system, user_content, max_tokens=MAX_OUTPUT_TOKENS, is_json=True)
     
     parsed = _parse_json(raw)
 
