@@ -19,16 +19,26 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Register Tamil-compatible fonts from Windows
-try:
-    pdfmetrics.registerFont(TTFont('Nirmala', 'C:/Windows/Fonts/Nirmala.ttf'))
-    pdfmetrics.registerFont(TTFont('Nirmala-Bold', 'C:/Windows/Fonts/NirmalaB.ttf'))
-    FONT_REGULAR = "Nirmala"
-    FONT_BOLD = "Nirmala-Bold"
-except Exception as e:
-    print(f"Font Load Warning: {e}. Falling back to Helvetica.")
-    FONT_REGULAR = "Helvetica"
-    FONT_BOLD = "Helvetica-Bold"
+# Register Tamil-compatible fonts
+# Check common paths for both Windows and Linux
+FONT_PATHS = [
+    ('Nirmala', 'C:/Windows/Fonts/Nirmala.ttf'),            # Windows
+    ('Nirmala-Bold', 'C:/Windows/Fonts/NirmalaB.ttf'),      # Windows Bold
+    ('Nirmala', '/usr/share/fonts/truetype/nirmala.ttf'),   # Linux potential
+    ('Nirmala-Bold', '/usr/share/fonts/truetype/nirmala-bold.ttf'),
+]
+
+FONT_REGULAR = "Helvetica"
+FONT_BOLD = "Helvetica-Bold"
+
+for name, path in FONT_PATHS:
+    if os.path.exists(path):
+        try:
+            pdfmetrics.registerFont(TTFont(name, path))
+            if "Bold" in name: FONT_BOLD = name
+            else: FONT_REGULAR = name
+        except:
+            pass
 
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
