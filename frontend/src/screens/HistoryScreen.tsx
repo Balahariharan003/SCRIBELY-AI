@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Feather } from '@expo/vector-icons';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NavHeader from '../components/NavHeader';
 import { supabase } from '../config/supabase';
@@ -111,7 +110,7 @@ export default function HistoryScreen({ navigation, route }) {
       
       <View style={styles.searchRow}>
         <View style={styles.searchContainer}>
-          <FontAwesome5 name="search" size={16} color="#284b63" style={{ marginRight: 10 }} />
+          <FontAwesome name="search" size={16} color="#284b63" style={{ marginRight: 10 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search history..."
@@ -124,7 +123,7 @@ export default function HistoryScreen({ navigation, route }) {
           style={[styles.filterButton, (selectedMonth !== 'All' || selectedYear !== 'All') && styles.filterButtonActive]} 
           onPress={() => setFilterModalVisible(true)}
         >
-          <FontAwesome5 name="filter" size={18} color={(selectedMonth !== 'All' || selectedYear !== 'All') ? "#fff" : "#284b63"} />
+          <FontAwesome name="filter" size={18} color={(selectedMonth !== 'All' || selectedYear !== 'All') ? "#fff" : "#284b63"} />
         </TouchableOpacity>
       </View>
 

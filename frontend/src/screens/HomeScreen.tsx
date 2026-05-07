@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Activity
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
-import { Feather } from '@expo/vector-icons';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+
 
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabase';
@@ -167,7 +167,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
             style={styles.deleteBtn} 
             onPress={() => handleDeleteSession(item.id)}
           >
-            <Feather name="trash-2" size={18} color="#FF4D4D" />
+            <FontAwesome name="trash" size={18} color="#FF4D4D" />
           </TouchableOpacity>
         </View>
       </View>
@@ -221,7 +221,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
                 onLogout();
               }}
             >
-              <FontAwesome5 name="sign-out-alt" size={18} color="#FF4D4D" />
+              <FontAwesome name="sign-out" size={18} color="#FF4D4D" />
               <Text style={styles.logoutText}>Log Out</Text>
             </TouchableOpacity>
           </View>
@@ -230,7 +230,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
 
       <View style={styles.searchRow}>
         <View style={styles.searchContainer}>
-          <FontAwesome5 name="search" size={16} color="#284b63" style={{ marginRight: 10 }} />
+          <FontAwesome name="search" size={16} color="#284b63" style={{ marginRight: 10 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search your notes..."
@@ -243,7 +243,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
           style={[styles.filterButton, (selectedMonth !== 'All' || selectedYear !== 'All') && styles.filterButtonActive]} 
           onPress={() => setFilterModalVisible(true)}
         >
-          <FontAwesome5
+          <FontAwesome
             name="filter"
             size={20}
             color={(selectedMonth !== 'All' || selectedYear !== 'All') ? "#fff" : "#284b63"}
@@ -345,7 +345,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
         style={styles.fab}
         onPress={() => navigation.navigate('Record')}
       >
-        <FontAwesome5 name="microphone" size={28} color="#fff" />
+        <FontAwesome name="microphone" size={28} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
   );

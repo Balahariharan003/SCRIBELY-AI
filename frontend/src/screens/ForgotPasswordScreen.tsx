@@ -4,7 +4,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+
 
 import { API_BASE_URL } from '../config/api';
 
@@ -62,7 +62,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
         
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+            <FontAwesome name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
 
         <View style={styles.header}>

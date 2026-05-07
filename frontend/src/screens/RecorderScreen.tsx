@@ -4,8 +4,7 @@ import { AudioModule, RecordingPresets, AudioRecorder } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
-import { Feather } from '@expo/vector-icons';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { API_BASE_URL } from '../config/api';
@@ -349,7 +348,7 @@ export default function RecorderScreen({ navigation, user }: any) {
                 onPress={startRecording}
                 disabled={isProcessing}
               >
-                <FontAwesome5 name="microphone" size={30} color="#FFFFFF" />
+                <FontAwesome name="microphone" size={30} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
