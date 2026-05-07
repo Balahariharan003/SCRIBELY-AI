@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from models import FinalizeRequest, ReformatRequest, UpdateNotesRequest
 from session.store import (
