@@ -132,4 +132,9 @@ class ClassNotesOutput(BaseModel):
 
 class ReformatRequest(BaseModel):
     session_id:  str
-    instruction: str
+    instruction: str
+
+
+class UpdateNotesRequest(BaseModel):
+    session_id: Optional[str] = None
+    data: dict

@@ -27,8 +27,8 @@ if USE_SARVAM and SARVAM_API_KEY:
 else:
     logger.info(f"Using Local Ollama (Model: {SARVAM_MODEL})")
 
-MAX_INPUT_CHARS  = 8000 if USE_SARVAM else 4000
-MAX_OUTPUT_TOKENS = 4000 if USE_SARVAM else 1000 
+MAX_INPUT_CHARS  = 5000 if USE_SARVAM else 4000
+MAX_OUTPUT_TOKENS = 2400 if USE_SARVAM else 1000 
 
 
 # BASE LLM CALL
@@ -53,8 +53,7 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = MAX_
                     {"role": "user",   "content": user_prompt},
                 ]
             }
-            if SARVAM_MODEL != "sarvam-m":
-                payload["max_tokens"] = max_tokens
+            payload["max_tokens"] = max_tokens
 
             for attempt in range(3):
                 try:
@@ -75,7 +74,10 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = MAX_
 
                             # --- Robust Cleaning ---
                             # Remove think blocks carefully
-                            clean_text = re.sub(r'<think>.*?(?:</think>|$)', '', raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+                            # First, remove any fully closed think blocks
+                            clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+                            # Then, remove any unclosed think block at the end (common if truncated)
+                            clean_text = re.sub(r'<think>.*$', '', clean_text, flags=re.DOTALL | re.IGNORECASE).strip()
 
                             # 1. Try to find content inside explicit tags
                             for tag in ["result", "summary", "cleaned_transcript", "output"]:
@@ -356,12 +358,14 @@ async def reformat_notes(current_notes: dict, instruction: str, block_summaries:
 
     system = (
         "Edit the following JSON notes based on the User Instruction.\n"
-        "Keep the same JSON keys. Output ONLY the modified JSON inside <result> tags."
+        "Keep the same JSON keys. Output ONLY the modified JSON inside <result> tags.\n"
+        "BE EXTREMELY CONCISE in your thinking block. Do not over-explain. "
+        "Prioritize the final JSON output over the thinking process."
     )
 
     user_content = f"USER INSTRUCTION: {instruction}\n\n{context_str}"
 
-    raw = await _safe_llm(system, user_content, max_tokens=MAX_OUTPUT_TOKENS, is_json=True)
+    raw = await _safe_llm(system, user_content, max_tokens=2400, is_json=True)
     
     parsed = _parse_json(raw)
 

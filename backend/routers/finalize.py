@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from models import FinalizeRequest, ReformatRequest
+from models import FinalizeRequest, ReformatRequest, UpdateNotesRequest
 from session.store import (
     get_session,
     get_all_chunks,
@@ -32,26 +32,44 @@ CHUNK_GROUP_SIZE = 5  # number of chunk summaries per block
 
 
 @router.post("/update-notes")
-async def update_notes(session_id: str, data: dict):
+async def update_notes(request: UpdateNotesRequest, session_id: Optional[str] = None):
     """
-    Saves user-edited notes back to the session store.
-    Handles the 'custom_notes' field from the frontend.
+    Saves updated notes back to the session store.
+    Handles both full JSON updates and manual 'custom_notes' edits.
+    Supports session_id in body or as query param for robustness.
     """
-    session = get_session(session_id, fetch_if_missing=True)
+    # Robustly find session_id
+    sid = request.session_id or session_id
+    if not sid:
+        # Fallback: check if it's inside the data dict (common mismatch)
+        sid = request.data.get("session_id") or request.data.get("sessionId")
+        
+    if not sid:
+        raise HTTPException(status_code=422, detail="session_id is required")
+
+    session = get_session(sid, fetch_if_missing=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    ncg = session.get("ncg_json", {})
-    new_content = data.get("custom_notes")
+    old_ncg = session.get("ncg_json", {})
+    new_data = request.data
     
-    if ncg and new_content:
-        # If it's a structured JSON, we update the content parts
-        # For simplicity, we can store the edited version as a new field or overwrite
-        # the main text while preserving metadata.
-        ncg["full_content_edited"] = new_content
-        # Also update the display content for the status endpoint
-        session["ncg_json"] = ncg
-        save_ncg(session_id, ncg)
+    # If the incoming data is a full notes object (contains session_overview or similar)
+    if any(k in new_data for k in ["session_overview", "topics_covered", "session_title"]):
+        # It's a full replacement (likely from AI reformat)
+        # Ensure we keep the session_id inside the data for storage consistency
+        if "session_id" not in new_data:
+            new_data["session_id"] = sid
+        
+        session["ncg_json"] = new_data
+        save_ncg(sid, new_data)
+    else:
+        # It's likely a manual edit of the 'custom_notes' field
+        new_content = new_data.get("custom_notes")
+        if old_ncg and new_content:
+            old_ncg["full_content_edited"] = new_content
+            session["ncg_json"] = old_ncg
+            save_ncg(sid, old_ncg)
         
     return {"message": "Notes updated successfully"}
 
@@ -80,7 +98,8 @@ async def handle_reformat(request: ReformatRequest):
         new_notes["session_title"] = old_notes.get("session_title") or old_notes.get("title") or "Session Notes"
     
     # Save the updated version
-    save_ncg(request.session_id, new_notes)
+    # Do NOT save automatically anymore. Return to user for preview.
+    # save_ncg(request.session_id, new_notes)
     
     return new_notes
 

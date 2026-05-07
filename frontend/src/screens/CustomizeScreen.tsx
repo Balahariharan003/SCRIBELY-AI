@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
+import NotesRenderer from '../components/NotesRenderer';
 
 import { API_BASE_URL } from '../config/api';
 
@@ -10,6 +11,8 @@ export default function CustomizeScreen({ route, navigation }: any) {
   const { sessionId } = route.params;
   const [prompt, setPrompt] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Chat history (local UI only)
   const [messages, setMessages] = useState([
@@ -25,17 +28,39 @@ export default function CustomizeScreen({ route, navigation }: any) {
     setIsProcessing(true);
 
     try {
-      await axios.post(`${API_BASE_URL}/reformat-notes`, {
+      const response = await axios.post(`${API_BASE_URL}/reformat-notes`, {
         session_id: sessionId,
         instruction: customPrompt
       });
       
-      Alert.alert('Success', 'Notes updated! Going back to view them.');
-      navigation.goBack();
+      const newNotes = response.data;
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: "I've reformatted the notes based on your request. Please review and click 'Save & Apply' if you're happy with the changes.",
+        data: newNotes // Store the draft JSON here
+      }]);
+      setIsProcessing(false);
     } catch (err) {
       console.error('Error customizing notes:', err);
       Alert.alert('Error', 'Failed to customize notes. Please try again.');
       setMessages(prev => [...prev, { role: 'assistant', text: "Sorry, I ran into an error. Please try again." }]);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSave = async (data: any) => {
+    setIsProcessing(true);
+    try {
+      await axios.post(`${API_BASE_URL}/update-notes`, {
+        session_id: sessionId,
+        data: data
+      });
+      
+      Alert.alert('Success', 'Notes updated successfully!');
+      navigation.goBack();
+    } catch (err) {
+      console.error('Error saving notes:', err);
+      Alert.alert('Error', 'Failed to save notes. Please try again.');
       setIsProcessing(false);
     }
   };
@@ -47,6 +72,35 @@ export default function CustomizeScreen({ route, navigation }: any) {
         {!isUser && <Text style={styles.aiAvatar}>✨</Text>}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
           <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextAi]}>{msg.text}</Text>
+          
+          {msg.data && (
+            <TouchableOpacity 
+              style={styles.previewCard} 
+              onPress={() => {
+                setPreviewData(msg.data);
+                setShowPreviewModal(true);
+              }}
+            >
+              <Text style={styles.previewTitle}>Preview of Changes (Click to see full):</Text>
+              <View style={styles.previewScroll}>
+                {msg.data.session_title && <Text style={styles.previewText} numberOfLines={1}>Title: {msg.data.session_title}</Text>}
+                {msg.data.session_overview && (
+                  <Text style={styles.previewText} numberOfLines={3}>
+                    Overview: {Array.isArray(msg.data.session_overview) ? msg.data.session_overview[0] : msg.data.session_overview}
+                  </Text>
+                )}
+                <Text style={styles.previewText}>(And other sections updated...)</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.applyBtn} 
+                onPress={() => handleSave(msg.data)}
+                disabled={isProcessing}
+              >
+                <Text style={styles.applyBtnText}>{isProcessing ? 'Saving...' : 'Save & Apply'}</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -119,6 +173,38 @@ export default function CustomizeScreen({ route, navigation }: any) {
         </View>
 
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showPreviewModal}
+        animationType="slide"
+        onRequestClose={() => setShowPreviewModal(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Full Review</Text>
+            <TouchableOpacity onPress={() => setShowPreviewModal(false)}>
+              <Text style={styles.closeModalText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            {previewData && <NotesRenderer ncgJson={previewData} />}
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity 
+              style={[styles.applyBtn, { marginTop: 0, flex: 1 }]} 
+              onPress={() => {
+                setShowPreviewModal(false);
+                handleSave(previewData);
+              }}
+              disabled={isProcessing}
+            >
+              <Text style={styles.applyBtnText}>Looks Good, Save Now</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -175,6 +261,70 @@ const styles = StyleSheet.create({
   },
   bubbleTextAi: {
     color: '#353535',
+  },
+  applyBtn: {
+    marginTop: 12,
+    backgroundColor: '#284b63',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  previewCard: {
+    marginTop: 15,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(40, 75, 99, 0.2)',
+  },
+  previewTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#284b63',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  previewScroll: {
+    marginBottom: 10,
+  },
+  previewText: {
+    fontSize: 13,
+    color: '#353535',
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#d9d9d9',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#284b63',
+  },
+  closeModalText: {
+    fontSize: 16,
+    color: '#353535',
+    fontWeight: '600',
+  },
+  modalScroll: {
+    padding: 20,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#d9d9d9',
+    flexDirection: 'row',
   },
   suggestionsContainer: {
     marginTop: 20,
