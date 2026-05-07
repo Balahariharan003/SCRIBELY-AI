@@ -31,7 +31,7 @@ async def transcribe_chunk(audio_bytes: bytes, chunk_index: int, session_id: str
 
     try:
         # ── Route to Sarvam Cloud ─────────────────────────────
-        if USE_SARVAM and sarvam_client:
+        if sarvam_client:
             print(f"[CLOUD]   >>> STT chunk {chunk_index}: Checking length and splitting if needed...")
             
             # Split into segments to stay under Sarvam's 30s limit
