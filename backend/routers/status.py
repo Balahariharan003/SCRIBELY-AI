@@ -65,7 +65,10 @@ def _format_content(notes: dict) -> str:
             for sub_k, sub_v in value.items():
                 if _has_content(sub_v): lines.append(f"  {sub_k.title()}: {sub_v}")
         else:
-            lines.append(str(value))
+            if isinstance(value, str):
+                lines.append(value)
+            else:
+                lines.append(str(value))
         lines.append("")
     return "\n".join(lines).strip()
 
@@ -90,6 +93,7 @@ async def get_status(session_id: str):
         pdf_url    = session.get("pdf_url"),
         docx_url   = session.get("docx_url"),
         content    = content_str,
+        ncg_json   = session.get("ncg_json"),
     )
 
 

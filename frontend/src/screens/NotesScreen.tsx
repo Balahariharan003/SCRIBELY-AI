@@ -163,36 +163,87 @@ export default function NotesScreen({ route, navigation }: any) {
                 <View>
                   {/* Overview */}
                   <Text style={styles.sectionHeading}>Session Overview</Text>
-                  <Text style={styles.contentText}>{status.ncg_json.session_overview}</Text>
+                  <Text style={styles.contentText}>
+                    {Array.isArray(status.ncg_json.session_overview) 
+                      ? status.ncg_json.session_overview.join('\n') 
+                      : String(status.ncg_json.session_overview || '')}
+                  </Text>
 
                   {/* Topics Covered */}
-                  <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Topics Covered</Text>
-                  {Array.isArray(status.ncg_json.topics_covered) ? (
-                    status.ncg_json.topics_covered.map((topic: string, index: number) => {
-                      // Clean up numbering prefixes like "2.", "2.2", etc.
-                      const cleanTopic = topic.replace(/^\d+(\.\d+)*\s*/, '').trim();
-                      return (
-                        <View key={index} style={styles.topicRow}>
-                          <View style={styles.bulletPoint} />
-                          <Text style={styles.topicText}>{cleanTopic}</Text>
+                  {status.ncg_json.topics_covered && (
+                    <>
+                      <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Topics Covered</Text>
+                      {Array.isArray(status.ncg_json.topics_covered) ? (
+                        status.ncg_json.topics_covered.map((topic: any, index: number) => {
+                          const topicName = typeof topic === 'string' ? topic : (topic.name || '');
+                          const cleanTopic = topicName.replace(/^\d+(\.\d+)*\s*/, '').trim();
+                          return (
+                            <View key={index} style={styles.topicRow}>
+                              <View style={styles.bulletPoint} />
+                              <Text style={styles.topicText}>{cleanTopic}</Text>
+                            </View>
+                          );
+                        })
+                      ) : (
+                        <Text style={styles.topicText}>{String(status.ncg_json.topics_covered)}</Text>
+                      )}
+                    </>
+                  )}
+
+                  {/* Concept Notes */}
+                  {status.ncg_json.concept_notes && Array.isArray(status.ncg_json.concept_notes) && status.ncg_json.concept_notes.length > 0 && (
+                    <>
+                      <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Concept Notes</Text>
+                      {status.ncg_json.concept_notes.map((concept: any, index: number) => (
+                        <View key={index} style={{ marginBottom: 15 }}>
+                          <Text style={[styles.contentText, { fontWeight: '700', color: '#284b63' }]}>• {concept.name || concept.concept}</Text>
+                          {concept.definition && <Text style={[styles.contentText, { marginLeft: 15, fontStyle: 'italic', fontSize: 14 }]}>{concept.definition}</Text>}
+                          {concept.explanation && <Text style={[styles.contentText, { marginLeft: 15, marginTop: 4 }]}>{concept.explanation}</Text>}
                         </View>
-                      );
-                    })
-                  ) : (
-                    <Text style={styles.topicText}>{String(status.ncg_json.topics_covered)}</Text>
+                      ))}
+                    </>
                   )}
 
                   {/* Key Takeaways */}
-                  <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Key Takeaways</Text>
-                  {Array.isArray(status.ncg_json.key_takeaways) ? (
-                    status.ncg_json.key_takeaways.map((item: string, index: number) => (
-                      <View key={index} style={styles.takeawayRow}>
-                        <Text style={styles.takeawayBullet}>•</Text>
-                        <Text style={styles.contentText}>{item}</Text>
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={styles.contentText}>{String(status.ncg_json.key_takeaways)}</Text>
+                  {status.ncg_json.key_takeaways && (
+                    <>
+                      <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Key Takeaways</Text>
+                      {Array.isArray(status.ncg_json.key_takeaways) ? (
+                        status.ncg_json.key_takeaways.map((item: string, index: number) => (
+                          <View key={index} style={styles.takeawayRow}>
+                            <Text style={styles.takeawayBullet}>•</Text>
+                            <Text style={styles.contentText}>{item}</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.contentText}>{String(status.ncg_json.key_takeaways)}</Text>
+                      )}
+                    </>
+                  )}
+
+                  {/* Q&A Section */}
+                  {status.ncg_json.qa_section && Array.isArray(status.ncg_json.qa_section) && status.ncg_json.qa_section.length > 0 && (
+                    <>
+                      <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Questions & Answers</Text>
+                      {status.ncg_json.qa_section.map((item: any, index: number) => (
+                        <View key={index} style={{ marginBottom: 15, backgroundColor: '#f5f5f5', padding: 12, borderRadius: 8 }}>
+                          <Text style={[styles.contentText, { fontWeight: '700' }]}>Q: {item.question}</Text>
+                          <Text style={[styles.contentText, { marginTop: 5, color: '#284b63' }]}>A: {item.answer}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Practice Work */}
+                  {status.ncg_json.practice_work && (
+                    <>
+                      <Text style={[styles.sectionHeading, { marginTop: 25 }]}>Practice Work</Text>
+                      <Text style={styles.contentText}>
+                        {Array.isArray(status.ncg_json.practice_work) 
+                          ? status.ncg_json.practice_work.join('\n\n') 
+                          : String(status.ncg_json.practice_work)}
+                      </Text>
+                    </>
                   )}
                 </View>
               ) : (

@@ -99,7 +99,14 @@ export default function CustomizeScreen({ route, navigation }: any) {
             value={prompt}
             onChangeText={setPrompt}
             editable={!isProcessing}
-            onSubmitEditing={() => handleCustomize(prompt)}
+            multiline={true}
+            onSubmitEditing={() => {
+              if (Platform.OS === 'ios') {
+                // On iOS, multiline inputs often use a button to submit, 
+                // but we keep this for hardware keyboards.
+                handleCustomize(prompt);
+              }
+            }}
           />
           
           <TouchableOpacity 
@@ -215,7 +222,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: '#353535',
-    maxHeight: 100,
+    maxHeight: 120,
+    minHeight: 44,
+    textAlignVertical: 'top',
   },
   sendBtn: {
     width: 36,
