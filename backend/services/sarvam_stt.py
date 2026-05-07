@@ -4,27 +4,18 @@ import subprocess
 import asyncio
 from dotenv import load_dotenv
 from sarvamai import SarvamAI
-from faster_whisper import WhisperModel
 
 load_dotenv()
 
 # ── CONFIG ────────────────────────────────────────────────────
-USE_SARVAM       = os.getenv("USE_SARVAM", "false").lower() == "true"
 SARVAM_API_KEY   = os.getenv("SARVAM_API_KEY", "")
 SARVAM_STT_MODEL = "saaras:v3"
-MODEL_SIZE       = "tiny"
-SARVAM_LIMIT_SEC = 28 # Stay slightly under the 30s limit for safety
+SARVAM_LIMIT_SEC = 28  # Stay slightly under the 30s limit for safety
 
-# Initialize models/clients
-sarvam_client = None
-local_model   = None
+# Initialize Sarvam client
+sarvam_client = SarvamAI(api_subscription_key=SARVAM_API_KEY)
+print(f"Using Sarvam AI STT (Model: {SARVAM_STT_MODEL}) | Key: {SARVAM_API_KEY[:7]}***")
 
-if USE_SARVAM and SARVAM_API_KEY:
-    sarvam_client = SarvamAI(api_subscription_key=SARVAM_API_KEY)
-    print(f"Using Sarvam AI STT (Model: {SARVAM_STT_MODEL}) | Key: {SARVAM_API_KEY[:7]}***")
-else:
-    print(f"Loading local Whisper model ({MODEL_SIZE})...")
-    local_model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
 
 # ── Transcribe one audio chunk ─────────────────────────────────
 async def transcribe_chunk(audio_bytes: bytes, chunk_index: int, session_id: str = "default") -> dict:
@@ -99,16 +90,9 @@ async def transcribe_chunk(audio_bytes: bytes, chunk_index: int, session_id: str
                 "status":     "ok",
             }
 
-        # ── Route to Local Whisper ───────────────────────────
-        print(f"STT chunk {chunk_index}: transcribing with local Whisper...")
-        segments, info = local_model.transcribe(wav_path, beam_size=5)
-        full_transcript = " ".join([s.text for s in segments]).strip()
-        
-        return {
-            "transcript": full_transcript,
-            "words":      [],
-            "status":     "ok",
-        }
+        # Sarvam is the only STT provider
+        print(f"STT chunk {chunk_index}: Sarvam client not initialized.")
+        return _failed_result()
 
     except Exception as e:
         print(f"STT error chunk {chunk_index}: {e}")
