@@ -151,6 +151,7 @@ export default function HistoryScreen({ navigation, route }) {
         transparent={true}
         animationType="slide"
         onRequestClose={() => setFilterModalVisible(false)}
+        statusBarTranslucent={true}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
           <View style={styles.modalContent}>

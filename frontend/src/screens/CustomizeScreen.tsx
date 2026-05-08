@@ -114,7 +114,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
       >
         <NavHeader title="AI Assistant" />
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {messages.map(renderBubble)}
           
           {isProcessing && (
@@ -178,6 +178,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
         visible={showPreviewModal}
         animationType="slide"
         onRequestClose={() => setShowPreviewModal(false)}
+        statusBarTranslucent={true}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={styles.modalHeader}>
@@ -187,7 +188,11 @@ export default function CustomizeScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
           
-          <ScrollView contentContainerStyle={styles.modalScroll}>
+          <ScrollView 
+            style={{ flex: 1 }} 
+            contentContainerStyle={styles.modalScroll}
+            nestedScrollEnabled={true}
+          >
             {previewData && <NotesRenderer ncgJson={previewData} />}
           </ScrollView>
 
@@ -319,6 +324,7 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     padding: 20,
+    flexGrow: 1,
   },
   modalFooter: {
     padding: 20,

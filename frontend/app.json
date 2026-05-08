@@ -3,7 +3,7 @@
     "name": "Scribely AI",
     "slug": "frontend",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/Ficon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
