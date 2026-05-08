@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform, BackHandler } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -12,6 +12,7 @@ import { API_BASE_URL } from '../config/api';
 
 export default function NotesScreen({ route, navigation }: any) {
   const { sessionId } = route.params;
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -125,9 +126,9 @@ export default function NotesScreen({ route, navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
         <NavHeader
@@ -173,7 +174,7 @@ export default function NotesScreen({ route, navigation }: any) {
         </ScrollView>
 
         {/* Bottom Toolbar */}
-        <View style={styles.bottomToolbar}>
+        <View style={[styles.bottomToolbar, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
           {!isEditing ? (
             <>
               <TouchableOpacity
@@ -336,7 +337,7 @@ const styles = StyleSheet.create({
   bottomToolbar: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: 15,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#d9d9d9',

@@ -6,7 +6,7 @@
     "orientation": "default",
     "icon": "./assets/Ficon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "updates": {
       "enabled": false
     },

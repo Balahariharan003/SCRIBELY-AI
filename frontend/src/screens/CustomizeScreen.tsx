@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import NavHeader from '../components/NavHeader';
 import NotesRenderer from '../components/NotesRenderer';
@@ -13,6 +13,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Chat history (local UI only)
   const [messages, setMessages] = useState([
@@ -21,7 +22,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
 
   const handleCustomize = async (customPrompt = prompt) => {
     if (!customPrompt.trim()) return;
-    
+
     // Add user message to chat
     setMessages(prev => [...prev, { role: 'user', text: customPrompt }]);
     setPrompt('');
@@ -32,10 +33,10 @@ export default function CustomizeScreen({ route, navigation }: any) {
         session_id: sessionId,
         instruction: customPrompt
       });
-      
+
       const newNotes = response.data;
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
         text: "I've reformatted the notes based on your request. Please review and click 'Save & Apply' if you're happy with the changes.",
         data: newNotes // Store the draft JSON here
       }]);
@@ -55,7 +56,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
         session_id: sessionId,
         data: data
       });
-      
+
       Alert.alert('Success', 'Notes updated successfully!');
       navigation.goBack();
     } catch (err) {
@@ -72,10 +73,10 @@ export default function CustomizeScreen({ route, navigation }: any) {
         {!isUser && <Text style={styles.aiAvatar}>✨</Text>}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
           <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextAi]}>{msg.text}</Text>
-          
+
           {msg.data && (
-            <TouchableOpacity 
-              style={styles.previewCard} 
+            <TouchableOpacity
+              style={styles.previewCard}
               onPress={() => {
                 setPreviewData(msg.data);
                 setShowPreviewModal(true);
@@ -91,9 +92,9 @@ export default function CustomizeScreen({ route, navigation }: any) {
                 )}
                 <Text style={styles.previewText}>(And other sections updated...)</Text>
               </View>
-              
-              <TouchableOpacity 
-                style={styles.applyBtn} 
+
+              <TouchableOpacity
+                style={styles.applyBtn}
                 onPress={() => handleSave(msg.data)}
                 disabled={isProcessing}
               >
@@ -107,23 +108,23 @@ export default function CustomizeScreen({ route, navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        behavior="padding"
         style={styles.container}
       >
         <NavHeader title="AI Assistant" />
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {messages.map(renderBubble)}
-          
+
           {isProcessing && (
-             <View style={[styles.bubbleWrapper, styles.bubbleAiWrapper]}>
-               <Text style={styles.aiAvatar}>✨</Text>
-               <View style={[styles.bubble, styles.bubbleAi, { paddingHorizontal: 20 }]}>
-                 <ActivityIndicator color="#284b63" />
-               </View>
-             </View>
+            <View style={[styles.bubbleWrapper, styles.bubbleAiWrapper]}>
+              <Text style={styles.aiAvatar}>✨</Text>
+              <View style={[styles.bubble, styles.bubbleAi, { paddingHorizontal: 20 }]}>
+                <ActivityIndicator color="#284b63" />
+              </View>
+            </View>
           )}
 
           {/* Suggestions if no user message yet */}
@@ -145,7 +146,7 @@ export default function CustomizeScreen({ route, navigation }: any) {
           )}
         </ScrollView>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
           <TextInput
             style={styles.textInput}
             placeholder="Customize with AI..."
@@ -162,8 +163,8 @@ export default function CustomizeScreen({ route, navigation }: any) {
               }
             }}
           />
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.sendBtn, (!prompt.trim() || isProcessing) && styles.sendBtnDisabled]}
             onPress={() => handleCustomize(prompt)}
             disabled={!prompt.trim() || isProcessing}
@@ -180,35 +181,37 @@ export default function CustomizeScreen({ route, navigation }: any) {
         onRequestClose={() => setShowPreviewModal(false)}
         statusBarTranslucent={true}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Full Review</Text>
-            <TouchableOpacity onPress={() => setShowPreviewModal(false)}>
-              <Text style={styles.closeModalText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView 
-            style={{ flex: 1 }} 
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          <ScrollView
+            style={{ flex: 1 }}
             contentContainerStyle={styles.modalScroll}
-            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={false}
           >
+            <Text style={styles.title}>Customized Notes</Text>
             {previewData && <NotesRenderer ncgJson={previewData} />}
           </ScrollView>
 
-          <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={[styles.applyBtn, { marginTop: 0, flex: 1 }]} 
+          <View style={[styles.bottomToolbar, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom + 10, 25) : 25 }]}>
+            <TouchableOpacity
+              style={styles.toolbarBtn}
+              onPress={() => setShowPreviewModal(false)}
+              disabled={isProcessing}
+            >
+              <Text style={[styles.toolbarText, { color: '#353535' }]}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toolbarBtn, styles.primaryBtn]}
               onPress={() => {
                 setShowPreviewModal(false);
                 handleSave(previewData);
               }}
               disabled={isProcessing}
             >
-              <Text style={styles.applyBtnText}>Looks Good, Save Now</Text>
+              {isProcessing ? <ActivityIndicator color="white" /> : <Text style={styles.primaryBtnText}>Save & Apply</Text>}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -323,8 +326,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalScroll: {
-    padding: 20,
-    flexGrow: 1,
+    padding: 24,
+    paddingBottom: 40,
   },
   modalFooter: {
     padding: 20,
@@ -364,7 +367,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 15,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 15,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#d9d9d9',
@@ -399,5 +401,51 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: -2,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#284b63',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+    marginTop: 20,
+  },
+  date: {
+    fontSize: 14,
+    color: 'rgba(53, 53, 53, 0.5)',
+    marginBottom: 30,
+    fontWeight: '500',
+  },
+  bottomToolbar: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#d9d9d9',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toolbarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  toolbarText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#353535',
+  },
+  primaryBtn: {
+    backgroundColor: '#284b63',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   }
 });

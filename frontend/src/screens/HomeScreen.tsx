@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ActivityIndicator, RefreshControl, ScrollView, Modal, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -10,6 +10,7 @@ import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabase';
 
 export default function HomeScreen({ navigation, user, onLogout }: any) {
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
@@ -342,7 +343,7 @@ export default function HomeScreen({ navigation, user, onLogout }: any) {
       )}
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: Math.max(insets.bottom + 15, 30) }]}
         onPress={() => navigation.navigate('Record')}
       >
         <FontAwesome name="microphone" size={28} color="#fff" />
