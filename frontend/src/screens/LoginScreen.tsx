@@ -18,7 +18,7 @@ export default function LoginScreen({ navigation, onLogin }: any) {
             style={styles.logo} 
             resizeMode="contain"
           />
-          <Text style={styles.subtitle}>Welcome to SCRIBELY AI! Please login to your account.</Text>
+          <Text style={styles.subtitle}>Welcome ! Please login to your account.</Text>
         </View>
 
         <View style={styles.form}>
